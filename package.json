@@ -1,0 +1,15 @@
+{
+  "name": "repairo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:mobile": "npm --workspace @repairo/mobile run dev",
+    "dev:api": "npm --workspace @repairo/api run dev",
+    "lint": "npm run -ws lint",
+    "type-check": "npm run -ws type-check"
+  }
+}

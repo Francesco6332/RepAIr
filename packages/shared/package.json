@@ -1,0 +1,11 @@
+{
+  "name": "@repairo/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "lint": "echo 'no lint for shared yet'",
+    "type-check": "tsc --project tsconfig.json --noEmit"
+  }
+}

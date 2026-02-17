@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "RepAIro",
+    "slug": "repairo",
+    "scheme": "repairo",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.repairo.app"
+    },
+    "android": {
+      "package": "com.repairo.app"
+    },
+    "plugins": ["expo-location", "expo-image-picker"]
+  }
+}
