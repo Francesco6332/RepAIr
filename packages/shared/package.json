@@ -7,5 +7,8 @@
   "scripts": {
     "lint": "echo 'no lint for shared yet'",
     "type-check": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }

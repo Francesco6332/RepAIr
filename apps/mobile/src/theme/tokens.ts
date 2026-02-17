@@ -3,40 +3,49 @@ export type ThemePreset = 'midnight' | 'carbon' | 'sunset';
 export const themes = {
   midnight: {
     name: 'Midnight Circuit',
-    bg: '#090B12',
-    bgAlt: '#111827',
+    bg: '#080B12',
+    bgAlt: '#0D1829',
+    bgDeep: '#111827',
     primary: '#34D399',
+    primaryGlow: 'rgba(52, 211, 153, 0.18)',
     accent: '#22D3EE',
-    glass: 'rgba(20, 28, 45, 0.45)',
+    glass: 'rgba(14, 22, 40, 0.55)',
+    glassBorder: 'rgba(255,255,255,0.14)',
     text: '#F8FAFC',
     textMuted: '#94A3B8',
     warning: '#FBBF24',
-    danger: '#F87171'
+    danger: '#F87171',
   },
   carbon: {
     name: 'Carbon Steel',
-    bg: '#08090B',
-    bgAlt: '#16181D',
+    bg: '#080909',
+    bgAlt: '#0E1118',
+    bgDeep: '#16181D',
     primary: '#60A5FA',
+    primaryGlow: 'rgba(96, 165, 250, 0.18)',
     accent: '#A78BFA',
-    glass: 'rgba(34, 40, 52, 0.48)',
+    glass: 'rgba(18, 22, 35, 0.58)',
+    glassBorder: 'rgba(255,255,255,0.13)',
     text: '#E5E7EB',
     textMuted: '#9CA3AF',
     warning: '#F59E0B',
-    danger: '#FB7185'
+    danger: '#FB7185',
   },
   sunset: {
     name: 'Sunset Turbo',
-    bg: '#0F0A0A',
-    bgAlt: '#1E1414',
+    bg: '#0E0808',
+    bgAlt: '#160E0E',
+    bgDeep: '#1E1414',
     primary: '#FB923C',
+    primaryGlow: 'rgba(251, 146, 60, 0.18)',
     accent: '#F43F5E',
-    glass: 'rgba(57, 31, 27, 0.45)',
+    glass: 'rgba(45, 22, 18, 0.55)',
+    glassBorder: 'rgba(255,255,255,0.12)',
     text: '#FFF7ED',
     textMuted: '#FDBA74',
     warning: '#FCD34D',
-    danger: '#F87171'
-  }
+    danger: '#F87171',
+  },
 } as const;
 
 export type ThemeTokens = (typeof themes)[ThemePreset];

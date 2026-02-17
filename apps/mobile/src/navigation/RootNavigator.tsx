@@ -1,44 +1,49 @@
 import React from 'react';
-import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Session } from '@supabase/supabase-js';
 import { DiagnoseScreen } from '../screens/DiagnoseScreen';
 import { MechanicsScreen } from '../screens/MechanicsScreen';
-import { CustomizationScreen } from '../screens/CustomizationScreen';
-import { useThemeStore } from '../store/useThemeStore';
-import { themes } from '../theme/tokens';
+import { AuthScreen } from '../screens/AuthScreen';
+import { VehiclesScreen } from '../screens/VehiclesScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
+import { GlassTabBar } from './GlassTabBar';
 
-const Tab = createBottomTabNavigator();
+type TabParamList = {
+  Diagnose: undefined;
+  Vehicles: undefined;
+  Mechanics: undefined;
+  Profile: undefined;
+};
 
-export function RootNavigator() {
-  const preset = useThemeStore((s) => s.preset);
-  const tokens = themes[preset];
+const Tab = createBottomTabNavigator<TabParamList>();
+const Stack = createNativeStackNavigator();
 
+function AppTabs({ session }: { session: Session }) {
+  return (
+    <Tab.Navigator
+      tabBar={(props) => <GlassTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
+    >
+      <Tab.Screen name="Diagnose">{() => <DiagnoseScreen session={session} />}</Tab.Screen>
+      <Tab.Screen name="Vehicles">{() => <VehiclesScreen session={session} />}</Tab.Screen>
+      <Tab.Screen name="Mechanics" component={MechanicsScreen} />
+      <Tab.Screen name="Profile">{() => <ProfileScreen session={session} />}</Tab.Screen>
+    </Tab.Navigator>
+  );
+}
+
+export function RootNavigator({ session }: { session: Session | null }) {
   return (
     <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          headerShown: false,
-          tabBarStyle: {
-            backgroundColor: tokens.bgAlt,
-            borderTopColor: 'rgba(255,255,255,0.08)'
-          },
-          tabBarActiveTintColor: tokens.primary,
-          tabBarInactiveTintColor: tokens.textMuted,
-          tabBarIcon: ({ color, size }) => {
-            const map: Record<string, string> = {
-              Diagnose: 'car-sport-outline',
-              Mechanics: 'map-outline',
-              Customize: 'color-palette-outline'
-            };
-            return <Ionicons name={map[route.name] as any} size={size} color={color} />;
-          }
-        })}
-      >
-        <Tab.Screen name="Diagnose" component={DiagnoseScreen} />
-        <Tab.Screen name="Mechanics" component={MechanicsScreen} />
-        <Tab.Screen name="Customize" component={CustomizationScreen} />
-      </Tab.Navigator>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {session ? (
+          <Stack.Screen name="App">{() => <AppTabs session={session} />}</Stack.Screen>
+        ) : (
+          <Stack.Screen name="Auth" component={AuthScreen} />
+        )}
+      </Stack.Navigator>
     </NavigationContainer>
   );
 }

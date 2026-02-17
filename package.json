@@ -11,5 +11,11 @@
     "dev:api": "npm --workspace @repairo/api run dev",
     "lint": "npm run -ws lint",
     "type-check": "npm run -ws type-check"
+  },
+  "dependencies": {
+    "@types/react": "~19.1.10",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-native": "^0.81.5"
   }
 }

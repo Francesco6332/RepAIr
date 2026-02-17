@@ -30,4 +30,7 @@ export interface MechanicCard {
   distanceKm: number;
   address: string;
   isOfficialDealer: boolean;
+  phone?: string;
+  website?: string;
+  openingHours?: string;
 }

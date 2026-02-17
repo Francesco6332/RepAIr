@@ -1,18 +1,21 @@
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { supabase } from '../services/supabase';
 import { useThemeStore } from '../store/useThemeStore';
 import { ThemePreset, themes } from '../theme/tokens';
 import { GlassCard } from '../components/GlassCard';
+import { PrimaryButton } from '../components/PrimaryButton';
 
 const presets = Object.keys(themes) as ThemePreset[];
 
 export function CustomizationScreen() {
+  const Gradient = LinearGradient as unknown as React.ComponentType<any>;
   const { preset, setPreset } = useThemeStore();
   const tokens = useMemo(() => themes[preset], [preset]);
 
   return (
-    <LinearGradient colors={[tokens.bg, tokens.bgAlt]} style={styles.page}>
+    <Gradient colors={[tokens.bg, tokens.bgAlt]} style={styles.page}>
       <Text style={[styles.title, { color: tokens.text }]}>Customization</Text>
       <GlassCard backgroundColor={tokens.glass}>
         <Text style={[styles.subtitle, { color: tokens.textMuted }]}>Automotive presets</Text>
@@ -26,15 +29,17 @@ export function CustomizationScreen() {
                 style={[styles.swatch, { borderColor: selected ? palette.primary : 'rgba(255,255,255,0.15)' }]}
                 onPress={() => setPreset(item)}
               >
-                <LinearGradient colors={[palette.bg, palette.primary]} style={styles.swatchInner}>
+                <Gradient colors={[palette.bg, palette.primary]} style={styles.swatchInner}>
                   <Text style={styles.swatchText}>{palette.name}</Text>
-                </LinearGradient>
+                </Gradient>
               </Pressable>
             );
           })}
         </View>
       </GlassCard>
-    </LinearGradient>
+
+      <PrimaryButton label="Sign out" onPress={() => supabase.auth.signOut()} color={tokens.warning} />
+    </Gradient>
   );
 }
 

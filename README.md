@@ -2,7 +2,7 @@
 
 RepAIro is a mobile-first AI prediagnosis platform for car owners.
 
-## What is included
+## Included apps
 
 - `apps/mobile`: Expo React Native app (iOS + Android)
 - `apps/api`: Node.js API (Express + TypeScript)
@@ -10,59 +10,83 @@ RepAIro is a mobile-first AI prediagnosis platform for car owners.
 - `supabase/schema.sql`: full DB schema + RLS
 - `supabase/seed.sql`: starter repair costs, DTC data, authorized workshops
 
-## Core features in this MVP
+## Fully implemented in this scaffold
 
-- AI prediagnosis from prompt text
-- Photo/audio diagnosis endpoints (no file persistence)
+- Supabase auth in mobile (sign up, sign in, sign out)
+- Vehicles management screen (add/list/select vehicle)
+- Text diagnosis endpoint integration
+- Camera/gallery photo diagnosis flow integration
+- Audio recording diagnosis flow integration
+- Nearby mechanics endpoint with OpenStreetMap (Overpass) integration + fallback
+- Authorized-brand dealer prioritization
 - Cost estimate endpoint
-- Nearby mechanics endpoint with authorized workshop prioritization
-- Automotive liquid-glass mobile UI
-- Theme customization presets
-- Free-plan daily quotas (in-memory middleware)
+- Liquid-glass modern automotive UI + theme presets
 
-## Zero fixed cost strategy (MVP)
+## Environment setup
 
-- Mobile app: Expo free workflow
-- API hosting: serverless free tier (Vercel/Render/Fly free tier variant)
-- Database/Auth: Supabase free tier
-- Caching/rate limit: optional Upstash free tier
-- AI: fallback rules when no API key is set; pay-per-use only when Anthropic key is enabled
+### API: `apps/api/.env`
 
-## Quick start
+```env
+PORT=8787
+NODE_ENV=development
+OPENAI_API_KEY=sk-your-openai-api-key
+OPENAI_MODEL=gpt-4o-mini
+ANTHROPIC_API_KEY=
+SUPABASE_JWT_SECRET=
+```
 
-### 1) Install dependencies
+OpenAI is now the primary model provider for diagnosis.
+Anthropic is optional backup.
+Nearby mechanics are fetched from OpenStreetMap/Overpass (no paid Maps key required).
+
+### Mobile: `apps/mobile/.env`
+
+```env
+EXPO_PUBLIC_API_URL=http://YOUR_LAN_IP:8787
+EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
+```
+
+Use LAN IP for Android/iOS devices on the same network.
+
+## Supabase setup
+
+1. Create a Supabase project.
+2. In SQL editor run `supabase/schema.sql`.
+3. Run `supabase/seed.sql`.
+4. In project settings copy:
+- Project URL -> `EXPO_PUBLIC_SUPABASE_URL`
+- Anon key -> `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- JWT secret -> `SUPABASE_JWT_SECRET`
+
+## Install and run
 
 ```bash
 npm install
 ```
 
-### 2) Configure environments
-
-```bash
-cp apps/api/.env.example apps/api/.env
-cp apps/mobile/.env.example apps/mobile/.env
-```
-
-### 3) Run API
+Start API:
 
 ```bash
 npm run dev:api
 ```
 
-### 4) Run mobile app
+Start mobile:
 
 ```bash
 npm run dev:mobile
 ```
 
-Then open with Expo Go for iOS/Android.
+In Expo terminal press:
+- `a` for Android emulator
+- `i` for iOS simulator
+- or scan QR with Expo Go
 
-## Supabase setup
+## Zero-fixed-cost mode
 
-1. Create a Supabase project.
-2. Run `supabase/schema.sql` in SQL editor.
-3. Run `supabase/seed.sql`.
-4. Wire Supabase SDK into `apps/api` and `apps/mobile` for production auth/data.
+- Works without fixed infra cost using free tiers
+- If `OPENAI_API_KEY` is empty, API falls back to Anthropic (if configured) then rule-based diagnosis
+- Mechanics search uses OpenStreetMap by default; if OSM query fails, fallback list is returned
 
 ## Important disclaimer
 

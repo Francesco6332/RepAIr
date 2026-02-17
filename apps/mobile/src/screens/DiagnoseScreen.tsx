@@ -1,39 +1,73 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Audio } from 'expo-av';
+import * as ImagePicker from 'expo-image-picker';
+import { Session } from '@supabase/supabase-js';
+import {
+  ActivityIndicator,
+  Keyboard,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassCard } from '../components/GlassCard';
+import { GlassInput } from '../components/GlassInput';
 import { PrimaryButton } from '../components/PrimaryButton';
-import { createPrediagnosis } from '../services/api';
+import { analyzeAudio, analyzePhoto, createPrediagnosis } from '../services/api';
 import { useThemeStore } from '../store/useThemeStore';
 import { themes } from '../theme/tokens';
 import { PrediagnosisResult } from '@repairo/shared';
+import { useVehicleStore } from '../store/useVehicleStore';
 
-export function DiagnoseScreen() {
+type Props = { session: Session };
+
+const URGENCY_COLOR: Record<string, string> = {
+  low: '#34D399',
+  medium: '#FBBF24',
+  high: '#FB923C',
+  critical: '#F87171',
+};
+
+export function DiagnoseScreen({ session: _session }: Props) {
+  const Gradient = LinearGradient as unknown as React.ComponentType<any>;
+  const insets = useSafeAreaInsets();
   const preset = useThemeStore((s) => s.preset);
   const tokens = useMemo(() => themes[preset], [preset]);
+  const { vehicles, selectedVehicleId } = useVehicleStore();
 
-  const [prompt, setPrompt] = useState('My car shakes when braking at low speed.');
+  const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [audioStartedAt, setAudioStartedAt] = useState<number | null>(null);
   const [result, setResult] = useState<PrediagnosisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const onDiagnose = async () => {
+  const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? vehicles[0];
+
+  const vehicleContext = selectedVehicle
+    ? {
+        make: selectedVehicle.make,
+        model: selectedVehicle.model,
+        year: selectedVehicle.year,
+        mileage: selectedVehicle.current_mileage,
+        fuelType: selectedVehicle.fuel_type ?? undefined,
+      }
+    : null;
+
+  const withGuard = async (fn: () => Promise<PrediagnosisResult>) => {
+    if (!vehicleContext) {
+      setError('Add and select a vehicle first in the Vehicles tab.');
+      return;
+    }
     setLoading(true);
     setError(null);
+    setResult(null);
     try {
-      const data = await createPrediagnosis({
-        mode: 'text',
-        prompt,
-        region: 'US',
-        vehicle: {
-          make: 'Ford',
-          model: 'Focus',
-          year: 2018,
-          mileage: 72000,
-          fuelType: 'petrol'
-        }
-      });
+      const data = await fn();
       setResult(data);
     } catch (e) {
       setError((e as Error).message);
@@ -42,81 +76,257 @@ export function DiagnoseScreen() {
     }
   };
 
+  const onDiagnoseText = async () => {
+    Keyboard.dismiss();
+    await withGuard(async () =>
+      createPrediagnosis({ mode: 'text', prompt, region: 'IT', vehicle: vehicleContext! })
+    );
+  };
+
+  const onAnalyzePhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) { setError('Photo permission is required.'); return; }
+
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.5,
+      base64: true,
+    });
+    if (picked.canceled) return;
+    const asset = picked.assets[0];
+    if (!asset.base64) { setError('Failed to read image data.'); return; }
+
+    await withGuard(async () =>
+      analyzePhoto({ imageBase64: asset.base64!, mimeType: asset.mimeType ?? 'image/jpeg', region: 'IT', vehicle: vehicleContext! })
+    );
+  };
+
+  const onToggleAudio = async () => {
+    if (!recording) {
+      const permission = await Audio.requestPermissionsAsync();
+      if (!permission.granted) { setError('Microphone permission is required.'); return; }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await rec.startAsync();
+      setRecording(rec);
+      setAudioStartedAt(Date.now());
+      return;
+    }
+    await recording.stopAndUnloadAsync();
+    const seconds = audioStartedAt ? Math.round((Date.now() - audioStartedAt) / 1000) : 10;
+    setRecording(null);
+    setAudioStartedAt(null);
+    await withGuard(async () =>
+      analyzeAudio({
+        audioTranscript: `Driver recorded abnormal mechanical noise for about ${seconds} seconds.`,
+        region: 'IT',
+        vehicle: vehicleContext!,
+      })
+    );
+  };
+
+  const urgencyColor = result
+    ? (URGENCY_COLOR[result.urgency.toLowerCase()] ?? tokens.warning)
+    : tokens.warning;
+
   return (
-    <LinearGradient colors={[tokens.bg, tokens.bgAlt]} style={styles.page}>
-      <Text style={[styles.title, { color: tokens.text }]}>RepAIro Prediagnosis</Text>
-      <GlassCard backgroundColor={tokens.glass}>
-        <Text style={[styles.label, { color: tokens.textMuted }]}>Describe your issue</Text>
-        <TextInput
-          multiline
-          value={prompt}
-          onChangeText={setPrompt}
-          style={[styles.input, { color: tokens.text, borderColor: 'rgba(255,255,255,0.14)' }]}
-          placeholder="Noise, warning light, vibration..."
-          placeholderTextColor={tokens.textMuted}
-        />
-        <PrimaryButton label="Run AI Prediagnosis" onPress={onDiagnose} color={tokens.primary} />
-      </GlassCard>
+    <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
+      <Gradient
+        colors={[tokens.bg, tokens.bgAlt, tokens.bgDeep]}
+        style={[styles.page, { paddingTop: insets.top + 16 }]}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          <Text style={[styles.pageTitle, { color: tokens.text }]}>Diagnose</Text>
+          <Text style={[styles.pageSubtitle, { color: tokens.textMuted }]}>
+            AI-powered pre-diagnosis
+          </Text>
 
-      {loading && <ActivityIndicator size="large" color={tokens.accent} style={styles.loader} />}
-      {error ? <Text style={[styles.error, { color: tokens.danger }]}>{error}</Text> : null}
+          {/* Vehicle chip */}
+          <GlassCard backgroundColor={tokens.glass} style={styles.card}>
+            <View style={styles.vehicleRow}>
+              <View style={[styles.vehicleIcon, { backgroundColor: tokens.primaryGlow }]}>
+                <Ionicons name="car-sport" size={18} color={tokens.primary} />
+              </View>
+              <View style={styles.vehicleInfo}>
+                <Text style={[styles.vehicleLabel, { color: tokens.textMuted }]}>
+                  Active vehicle
+                </Text>
+                <Text style={[styles.vehicleName, { color: tokens.text }]}>
+                  {selectedVehicle
+                    ? `${selectedVehicle.make} ${selectedVehicle.model} · ${selectedVehicle.year}`
+                    : 'No vehicle selected'}
+                </Text>
+              </View>
+              {!selectedVehicle && (
+                <Ionicons name="alert-circle-outline" size={18} color={tokens.warning} />
+              )}
+            </View>
+          </GlassCard>
 
-      {result ? (
-        <GlassCard backgroundColor={tokens.glass}>
-          <View style={styles.row}>
-            <Ionicons name="construct-outline" size={18} color={tokens.accent} />
-            <Text style={[styles.resultTitle, { color: tokens.text }]}>{result.probableIssue}</Text>
-          </View>
-          <Text style={[styles.resultLine, { color: tokens.textMuted }]}>Confidence: {Math.round(result.confidence * 100)}%</Text>
-          <Text style={[styles.resultLine, { color: tokens.textMuted }]}>Urgency: {result.urgency}</Text>
-          <Text style={[styles.resultLine, { color: tokens.textMuted }]}>Estimated Cost: ${result.estimatedCostMin} - ${result.estimatedCostMax}</Text>
-          <Text style={[styles.resultLine, { color: tokens.text }]}>{result.safetyAdvice}</Text>
-        </GlassCard>
-      ) : null}
-    </LinearGradient>
+          {/* Input card */}
+          <GlassCard backgroundColor={tokens.glass} style={styles.card}>
+            <GlassInput
+              tokens={tokens}
+              label="Describe the issue"
+              value={prompt}
+              onChangeText={setPrompt}
+              placeholder="Noise, warning light, vibration…"
+              multiline
+              style={styles.textArea}
+              textAlignVertical="top"
+            />
+            <PrimaryButton label="Analyze" onPress={onDiagnoseText} color={tokens.primary} disabled={loading} />
+
+            <View style={styles.mediaRow}>
+              <Pressable
+                onPress={onAnalyzePhoto}
+                style={[styles.mediaBtn, { borderColor: tokens.accent + '80' }]}
+              >
+                <Ionicons name="image-outline" size={18} color={tokens.accent} />
+                <Text style={[styles.mediaBtnText, { color: tokens.accent }]}>Photo</Text>
+              </Pressable>
+              <Pressable
+                onPress={onToggleAudio}
+                style={[
+                  styles.mediaBtn,
+                  {
+                    borderColor: recording ? tokens.danger + '80' : tokens.warning + '80',
+                    backgroundColor: recording ? tokens.danger + '15' : 'transparent',
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={recording ? 'stop-circle' : 'mic-outline'}
+                  size={18}
+                  color={recording ? tokens.danger : tokens.warning}
+                />
+                <Text style={[styles.mediaBtnText, { color: recording ? tokens.danger : tokens.warning }]}>
+                  {recording ? 'Stop' : 'Audio'}
+                </Text>
+              </Pressable>
+            </View>
+          </GlassCard>
+
+          {loading && (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color={tokens.primary} />
+              <Text style={[styles.loadingText, { color: tokens.textMuted }]}>Analysing…</Text>
+            </View>
+          )}
+
+          {error ? (
+            <View style={[styles.alertBox, { backgroundColor: tokens.danger + '18', borderColor: tokens.danger + '40' }]}>
+              <Ionicons name="alert-circle-outline" size={16} color={tokens.danger} />
+              <Text style={[styles.alertText, { color: tokens.danger }]}>{error}</Text>
+            </View>
+          ) : null}
+
+          {result ? (
+            <GlassCard backgroundColor={tokens.glass} style={styles.card}>
+              <View style={styles.resultHeader}>
+                <View style={[styles.resultIcon, { backgroundColor: tokens.accent + '20' }]}>
+                  <Ionicons name="construct" size={18} color={tokens.accent} />
+                </View>
+                <Text style={[styles.resultTitle, { color: tokens.text }]}>
+                  {result.probableIssue}
+                </Text>
+              </View>
+
+              <View style={styles.confRow}>
+                <Text style={[styles.confLabel, { color: tokens.textMuted }]}>Confidence</Text>
+                <Text style={[styles.confValue, { color: tokens.primary }]}>
+                  {Math.round(result.confidence * 100)}%
+                </Text>
+              </View>
+              <View style={[styles.barBg, { backgroundColor: tokens.glassBorder }]}>
+                <View
+                  style={[
+                    styles.barFill,
+                    { width: `${Math.round(result.confidence * 100)}%` as any, backgroundColor: tokens.primary },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.tagsRow}>
+                <View style={[styles.tag, { backgroundColor: urgencyColor + '20', borderColor: urgencyColor + '50' }]}>
+                  <Text style={[styles.tagText, { color: urgencyColor }]}>
+                    {result.urgency} urgency
+                  </Text>
+                </View>
+                <View style={[styles.tag, { backgroundColor: tokens.accent + '18', borderColor: tokens.accent + '40' }]}>
+                  <Text style={[styles.tagText, { color: tokens.accent }]}>
+                    €{result.estimatedCostMin}–€{result.estimatedCostMax}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={[styles.adviceBox, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
+                <Ionicons name="shield-checkmark-outline" size={14} color={tokens.textMuted} />
+                <Text style={[styles.adviceText, { color: tokens.textMuted }]}>
+                  {result.safetyAdvice}
+                </Text>
+              </View>
+            </GlassCard>
+          ) : null}
+        </ScrollView>
+      </Gradient>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  page: {
+  page: { flex: 1 },
+  scroll: { paddingHorizontal: 18, gap: 14 },
+  pageTitle: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
+  pageSubtitle: { fontSize: 14, marginBottom: 2 },
+  card: { marginBottom: 0 },
+  vehicleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  vehicleIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  vehicleInfo: { flex: 1 },
+  vehicleLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  vehicleName: { fontSize: 15, fontWeight: '700', marginTop: 2 },
+  textArea: { minHeight: 100 },
+  mediaRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  mediaBtn: {
     flex: 1,
-    padding: 18,
-    gap: 16
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    marginTop: 24
-  },
-  label: {
-    marginBottom: 8,
-    fontWeight: '600'
-  },
-  input: {
-    minHeight: 120,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    textAlignVertical: 'top'
-  },
-  loader: {
-    marginTop: 10
-  },
-  error: {
-    fontWeight: '600'
-  },
-  row: {
     flexDirection: 'row',
-    gap: 8,
     alignItems: 'center',
-    marginBottom: 8
+    justifyContent: 'center',
+    gap: 7,
+    borderWidth: 0.5,
+    borderRadius: 14,
+    paddingVertical: 11,
   },
-  resultTitle: {
-    fontSize: 16,
-    fontWeight: '700'
+  mediaBtnText: { fontWeight: '700', fontSize: 14 },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 12 },
+  loadingText: { fontSize: 14 },
+  alertBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 0.5,
   },
-  resultLine: {
-    marginTop: 3
-  }
+  alertText: { fontSize: 13, fontWeight: '600', flex: 1 },
+  resultHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 16 },
+  resultIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  resultTitle: { fontSize: 16, fontWeight: '700', flex: 1, lineHeight: 22 },
+  confRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  confLabel: { fontSize: 12, fontWeight: '600' },
+  confValue: { fontSize: 12, fontWeight: '700' },
+  barBg: { height: 4, borderRadius: 2, marginBottom: 14, overflow: 'hidden' },
+  barFill: { height: 4, borderRadius: 2 },
+  tagsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  tag: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 0.5 },
+  tagText: { fontSize: 12, fontWeight: '700' },
+  adviceBox: { flexDirection: 'row', gap: 8, padding: 12, borderRadius: 12, alignItems: 'flex-start' },
+  adviceText: { fontSize: 13, flex: 1, lineHeight: 18 },
 });
