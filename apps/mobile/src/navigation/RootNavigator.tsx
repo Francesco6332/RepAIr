@@ -8,6 +8,8 @@ import { MechanicsScreen } from '../screens/MechanicsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { VehiclesScreen } from '../screens/VehiclesScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { OnboardingScreen } from '../screens/OnboardingScreen';
+import { PricingScreen } from '../screens/PricingScreen';
 import { GlassTabBar } from './GlassTabBar';
 
 type TabParamList = {
@@ -17,8 +19,14 @@ type TabParamList = {
   Profile: undefined;
 };
 
+type OnboardingStackParamList = {
+  OnboardingSlides: undefined;
+  Pricing: undefined;
+};
+
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator();
+const OnboardingStack = createNativeStackNavigator<OnboardingStackParamList>();
 
 function AppTabs({ session }: { session: Session }) {
   return (
@@ -34,14 +42,39 @@ function AppTabs({ session }: { session: Session }) {
   );
 }
 
-export function RootNavigator({ session }: { session: Session | null }) {
+function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
+  return (
+    <OnboardingStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+      <OnboardingStack.Screen name="OnboardingSlides">
+        {({ navigation }) => (
+          <OnboardingScreen onContinue={() => navigation.navigate('Pricing')} />
+        )}
+      </OnboardingStack.Screen>
+      <OnboardingStack.Screen name="Pricing">
+        {() => <PricingScreen onComplete={onComplete} />}
+      </OnboardingStack.Screen>
+    </OnboardingStack.Navigator>
+  );
+}
+
+type RootNavigatorProps = {
+  session: Session | null;
+  needsOnboarding: boolean;
+  onOnboardingComplete: () => void;
+};
+
+export function RootNavigator({ session, needsOnboarding, onOnboardingComplete }: RootNavigatorProps) {
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {session ? (
-          <Stack.Screen name="App">{() => <AppTabs session={session} />}</Stack.Screen>
-        ) : (
+      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
+        {!session ? (
           <Stack.Screen name="Auth" component={AuthScreen} />
+        ) : needsOnboarding ? (
+          <Stack.Screen name="Onboarding">
+            {() => <OnboardingFlow onComplete={onOnboardingComplete} />}
+          </Stack.Screen>
+        ) : (
+          <Stack.Screen name="App">{() => <AppTabs session={session} />}</Stack.Screen>
         )}
       </Stack.Navigator>
     </NavigationContainer>
