@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeTokens } from '../theme/tokens';
 import { FREE_DAILY_LIMIT } from '../services/usage';
+import { useI18n } from '../i18n';
 
 type Props = {
   visible: boolean;
@@ -24,14 +25,15 @@ type Props = {
 const PRO_COLOR = '#A78BFA';
 
 const PRO_PERKS = [
-  { icon: 'infinite' as const, label: 'Unlimited daily diagnoses' },
-  { icon: 'image' as const, label: 'Photo & Audio analysis' },
-  { icon: 'time' as const, label: 'Full diagnosis history' },
-  { icon: 'flash' as const, label: 'Priority AI responses' },
-  { icon: 'document-text' as const, label: 'Export & share reports' },
+  { icon: 'infinite' as const, labelKey: 'paywall.perk.unlimited' },
+  { icon: 'image' as const, labelKey: 'paywall.perk.photoAudio' },
+  { icon: 'time' as const, labelKey: 'paywall.perk.history' },
+  { icon: 'flash' as const, labelKey: 'paywall.perk.priority' },
+  { icon: 'document-text' as const, labelKey: 'paywall.perk.export' },
 ];
 
 export function PaywallModal({ visible, onClose, tokens, reason = 'quota' }: Props) {
+  const { t } = useI18n();
   const GlassBlur = BlurView as unknown as React.ComponentType<any>;
   const Gradient = LinearGradient as unknown as React.ComponentType<any>;
 
@@ -54,9 +56,9 @@ export function PaywallModal({ visible, onClose, tokens, reason = 'quota' }: Pro
 
   const onUpgrade = () => {
     Alert.alert(
-      'Pro Plan — Coming Soon',
-      'We\'re finalizing the Pro plan. Stay on Free and we\'ll notify you when it launches!',
-      [{ text: 'Got it', onPress: onClose }]
+      t('pricing.alertTitle'),
+      t('pricing.alertBody'),
+      [{ text: t('pricing.alertOk'), onPress: onClose }]
     );
   };
 
@@ -98,29 +100,29 @@ export function PaywallModal({ visible, onClose, tokens, reason = 'quota' }: Pro
 
             {/* Title */}
             <Text style={styles.title}>
-              {reason === 'pdf' ? 'Report PDF · Pro' : 'Limite giornaliero raggiunto'}
+              {reason === 'pdf' ? t('paywall.titlePdf') : t('paywall.titleQuota')}
             </Text>
             <Text style={styles.subtitle}>
               {reason === 'pdf'
-                ? `Il report PDF completo da inviare al meccanico\nè disponibile con il piano Pro.`
-                : `Hai usato tutte le ${FREE_DAILY_LIMIT} diagnosi gratuite di oggi.\nIl limite si azzera a mezzanotte.`}
+                ? t('paywall.subtitlePdf')
+                : t('paywall.subtitleQuota', { limit: FREE_DAILY_LIMIT })}
             </Text>
 
             {/* Divider with "unlock with pro" */}
             <View style={styles.dividerRow}>
               <View style={[styles.divider, { backgroundColor: 'rgba(255,255,255,0.08)' }]} />
-              <Text style={styles.dividerText}>Unlock with Pro</Text>
+              <Text style={styles.dividerText}>{t('paywall.unlock')}</Text>
               <View style={[styles.divider, { backgroundColor: 'rgba(255,255,255,0.08)' }]} />
             </View>
 
             {/* Pro perks */}
             <View style={styles.perks}>
               {PRO_PERKS.map((p) => (
-                <View key={p.label} style={styles.perk}>
+                <View key={p.labelKey} style={styles.perk}>
                   <View style={[styles.perkIcon, { backgroundColor: PRO_COLOR + '18' }]}>
                     <Ionicons name={p.icon} size={14} color={PRO_COLOR} />
                   </View>
-                  <Text style={styles.perkText}>{p.label}</Text>
+                  <Text style={styles.perkText}>{t(p.labelKey)}</Text>
                 </View>
               ))}
             </View>
@@ -142,13 +144,13 @@ export function PaywallModal({ visible, onClose, tokens, reason = 'quota' }: Pro
                 />
               </View>
               <Ionicons name="sparkles" size={15} color="#fff" />
-              <Text style={styles.upgradeText}>Upgrade to Pro · €9.99/mo</Text>
+              <Text style={styles.upgradeText}>{t('paywall.upgrade')}</Text>
             </Pressable>
 
             {/* Secondary */}
             <Pressable onPress={onClose} style={styles.laterBtn}>
               <Text style={styles.laterText}>
-                {reason === 'pdf' ? 'Continua senza PDF' : 'Torna domani'}
+                {reason === 'pdf' ? t('paywall.continueNoPdf') : t('paywall.backTomorrow')}
               </Text>
             </Pressable>
           </View>

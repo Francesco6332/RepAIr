@@ -20,6 +20,7 @@ import { ThemePreset, themes } from '../theme/tokens';
 import { getProfile, updateProfile } from '../services/profile';
 import { supabase } from '../services/supabase';
 import { useVehicleStore } from '../store/useVehicleStore';
+import { useI18n } from '../i18n';
 
 type Props = { session: Session };
 
@@ -42,6 +43,7 @@ export function ProfileScreen({ session }: Props) {
   const insets = useSafeAreaInsets();
   const { preset, setPreset } = useThemeStore();
   const tokens = useMemo(() => themes[preset], [preset]);
+  const { t } = useI18n();
   const { vehicles } = useVehicleStore();
 
   const [displayName, setDisplayName] = useState('');
@@ -63,16 +65,16 @@ export function ProfileScreen({ session }: Props) {
     try {
       await updateProfile(session.user.id, { display_name: displayName.trim() });
     } catch {
-      Alert.alert('Error', 'Could not save your name.');
+      Alert.alert(t('profile.errorTitle'), t('profile.errorSave'));
     } finally {
       setSaving(false);
     }
   };
 
   const signOut = () => {
-    Alert.alert('Sign out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => supabase.auth.signOut() },
+    Alert.alert(t('profile.signoutTitle'), t('profile.signoutBody'), [
+      { text: t('profile.cancel'), style: 'cancel' },
+      { text: t('profile.signout'), style: 'destructive', onPress: () => supabase.auth.signOut() },
     ]);
   };
 
@@ -88,7 +90,7 @@ export function ProfileScreen({ session }: Props) {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <Text style={[styles.pageTitle, { color: tokens.text }]}>Profile</Text>
+        <Text style={[styles.pageTitle, { color: tokens.text }]}>{t('profile.title')}</Text>
 
         {/* Avatar & identity */}
         <GlassCard backgroundColor={tokens.glass} style={styles.card}>
@@ -105,7 +107,7 @@ export function ProfileScreen({ session }: Props) {
             </View>
             <View style={styles.identityInfo}>
               <Text style={[styles.nameLabel, { color: tokens.text }]}>
-                {displayName || session.user.email?.split('@')[0] || 'Driver'}
+                {displayName || session.user.email?.split('@')[0] || t('profile.driver')}
               </Text>
               <Text style={[styles.emailLabel, { color: tokens.textMuted }]}>
                 {session.user.email}
@@ -119,19 +121,19 @@ export function ProfileScreen({ session }: Props) {
               <Text style={[styles.statValue, { color: tokens.primary }]}>
                 {vehicles.length}
               </Text>
-              <Text style={[styles.statLabel, { color: tokens.textMuted }]}>Vehicles</Text>
+              <Text style={[styles.statLabel, { color: tokens.textMuted }]}>{t('profile.vehicles')}</Text>
             </View>
             <View style={[styles.statDivider, { backgroundColor: tokens.glassBorder }]} />
             <View style={styles.stat}>
               <Ionicons name="shield-checkmark" size={20} color={tokens.accent} />
-              <Text style={[styles.statLabel, { color: tokens.textMuted }]}>Verified</Text>
+              <Text style={[styles.statLabel, { color: tokens.textMuted }]}>{t('profile.verified')}</Text>
             </View>
           </View>
         </GlassCard>
 
         {/* Edit name */}
         <GlassCard backgroundColor={tokens.glass} style={styles.card}>
-          <Text style={[styles.sectionTitle, { color: tokens.text }]}>Display Name</Text>
+          <Text style={[styles.sectionTitle, { color: tokens.text }]}>{t('profile.displayName')}</Text>
           {loadingProfile ? (
             <ActivityIndicator color={tokens.primary} style={{ marginVertical: 12 }} />
           ) : (
@@ -140,12 +142,12 @@ export function ProfileScreen({ session }: Props) {
                 tokens={tokens}
                 value={displayName}
                 onChangeText={setDisplayName}
-                placeholder="Your name"
+                placeholder={t('profile.namePlaceholder')}
                 returnKeyType="done"
                 onSubmitEditing={saveDisplayName}
               />
               <PrimaryButton
-                label={saving ? 'Saving…' : 'Save name'}
+                label={saving ? t('profile.saving') : t('profile.saveName')}
                 onPress={saveDisplayName}
                 color={tokens.primary}
                 disabled={saving}
@@ -156,7 +158,7 @@ export function ProfileScreen({ session }: Props) {
 
         {/* Theme selection */}
         <GlassCard backgroundColor={tokens.glass} style={styles.card}>
-          <Text style={[styles.sectionTitle, { color: tokens.text }]}>Theme</Text>
+          <Text style={[styles.sectionTitle, { color: tokens.text }]}>{t('profile.theme')}</Text>
           <View style={styles.themeGrid}>
             {presets.map((item) => {
               const palette = themes[item];
@@ -196,7 +198,7 @@ export function ProfileScreen({ session }: Props) {
         <GlassCard backgroundColor={tokens.glass} style={styles.card}>
           <Pressable onPress={signOut} style={styles.signOutRow}>
             <Ionicons name="log-out-outline" size={20} color={tokens.danger} />
-            <Text style={[styles.signOutText, { color: tokens.danger }]}>Sign out</Text>
+            <Text style={[styles.signOutText, { color: tokens.danger }]}>{t('profile.signout')}</Text>
           </Pressable>
         </GlassCard>
       </ScrollView>

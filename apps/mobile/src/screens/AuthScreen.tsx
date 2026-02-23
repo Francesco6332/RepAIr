@@ -17,12 +17,14 @@ import { useThemeStore } from '../store/useThemeStore';
 import { themes } from '../theme/tokens';
 import { supabase } from '../services/supabase';
 import { ensureProfile } from '../services/profile';
+import { useI18n } from '../i18n';
 
 export function AuthScreen() {
   const Gradient = LinearGradient as unknown as React.ComponentType<any>;
   const insets = useSafeAreaInsets();
   const preset = useThemeStore((s) => s.preset);
   const tokens = useMemo(() => themes[preset], [preset]);
+  const { t } = useI18n();
 
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -34,7 +36,7 @@ export function AuthScreen() {
   const submit = async () => {
     setError(null);
     if (!email || !password) {
-      setError('Email and password are required.');
+      setError(t('auth.required'));
       return;
     }
     setLoading(true);
@@ -79,34 +81,34 @@ export function AuthScreen() {
             </View>
             <Text style={[styles.appName, { color: tokens.text }]}>RepAIr</Text>
             <Text style={[styles.tagline, { color: tokens.textMuted }]}>
-              AI-powered car diagnostics
+              {t('auth.tagline')}
             </Text>
           </View>
 
           {/* Auth card */}
           <GlassCard backgroundColor={tokens.glass}>
             <Text style={[styles.formTitle, { color: tokens.text }]}>
-              {isSignUp ? 'Create account' : 'Welcome back'}
+              {isSignUp ? t('auth.createTitle') : t('auth.welcomeTitle')}
             </Text>
             <Text style={[styles.formSubtitle, { color: tokens.textMuted }]}>
-              {isSignUp ? 'Join to start diagnosing your car' : 'Sign in to continue'}
+              {isSignUp ? t('auth.createSubtitle') : t('auth.signinSubtitle')}
             </Text>
 
             <View style={styles.fields}>
               {isSignUp && (
                 <GlassInput
                   tokens={tokens}
-                  label="Name"
+                  label={t('auth.name')}
                   value={name}
                   onChangeText={setName}
-                  placeholder="Your name"
+                  placeholder={t('auth.namePlaceholder')}
                   autoCapitalize="words"
                   returnKeyType="next"
                 />
               )}
               <GlassInput
                 tokens={tokens}
-                label="Email"
+                label={t('auth.email')}
                 value={email}
                 onChangeText={setEmail}
                 placeholder="email@example.com"
@@ -116,7 +118,7 @@ export function AuthScreen() {
               />
               <GlassInput
                 tokens={tokens}
-                label="Password"
+                label={t('auth.password')}
                 value={password}
                 onChangeText={setPassword}
                 placeholder="••••••••"
@@ -142,7 +144,7 @@ export function AuthScreen() {
             ) : null}
 
             <PrimaryButton
-              label={loading ? 'Please wait…' : isSignUp ? 'Create account' : 'Sign in'}
+              label={loading ? t('auth.wait') : isSignUp ? t('auth.createCta') : t('auth.signinCta')}
               onPress={submit}
               color={tokens.primary}
               disabled={loading}
@@ -155,9 +157,9 @@ export function AuthScreen() {
                 setError(null);
               }}
             >
-              {isSignUp ? 'Already have an account? ' : 'No account? '}
+              {isSignUp ? t('auth.hasAccount') : t('auth.noAccount')}
               <Text style={{ color: tokens.primary, fontWeight: '700' }}>
-                {isSignUp ? 'Sign in' : 'Sign up'}
+                {isSignUp ? t('auth.signin') : t('auth.signup')}
               </Text>
             </Text>
           </GlassCard>

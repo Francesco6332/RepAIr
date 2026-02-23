@@ -24,29 +24,26 @@ import { shareDiagnosisPdf } from '../utils/buildDiagnosisPdf';
 import { getCurrentPlan } from '../services/usage';
 import { MechanicCard } from '@repairo/shared';
 import { useVehicleStore } from '../store/useVehicleStore';
+import { useI18n } from '../i18n';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function buildPreventivoMessage(
-  mechanic: MechanicCard,
+  t: (key: string, params?: Record<string, string | number>) => string,
   vehicle?: { make: string; model: string; year: number },
   issue?: string
 ): string {
-  const lines: string[] = ['Buongiorno,'];
+  const lines: string[] = [t('mechanics.quoteHello')];
   if (vehicle) {
-    lines.push(
-      `Vi contatto riguardo al mio veicolo: ${vehicle.make} ${vehicle.model} ${vehicle.year}.`
-    );
+    lines.push(t('mechanics.quoteVehicle', { vehicle: `${vehicle.make} ${vehicle.model} ${vehicle.year}` }));
   }
   if (issue) {
-    lines.push(`\nDiagnosi RepAIr: ${issue}`);
+    lines.push(`\n${t('mechanics.quoteDiagnosis', { issue })}`);
   }
-  lines.push(
-    '\nVorrei richiedere un preventivo per la riparazione. Potreste indicarmi disponibilità e costi indicativi?'
-  );
-  lines.push('\nGrazie mille.');
+  lines.push(`\n${t('mechanics.quoteBody')}`);
+  lines.push(`\n${t('mechanics.quoteThanks')}`);
   return lines.join('\n');
 }
 
@@ -63,6 +60,7 @@ type PreventivoModalProps = {
 };
 
 function PreventivoModal({ visible, onClose, mechanic, message, tokens }: PreventivoModalProps) {
+  const { t } = useI18n();
   if (!mechanic) return null;
 
   const shareNative = () => {
@@ -79,7 +77,7 @@ function PreventivoModal({ visible, onClose, mechanic, message, tokens }: Preven
   };
 
   const shareEmail = () => {
-    const subject = encodeURIComponent(`Richiesta preventivo — ${mechanic.name}`);
+    const subject = encodeURIComponent(t('mechanics.quoteSubject', { name: mechanic.name }));
     const body = encodeURIComponent(message);
     Linking.openURL(`mailto:?subject=${subject}&body=${body}`);
   };
@@ -91,7 +89,7 @@ function PreventivoModal({ visible, onClose, mechanic, message, tokens }: Preven
           {/* Handle */}
           <View style={[styles.handle, { backgroundColor: tokens.glassBorder }]} />
 
-          <Text style={[styles.modalTitle, { color: tokens.text }]}>Richiedi preventivo</Text>
+          <Text style={[styles.modalTitle, { color: tokens.text }]}>{t('mechanics.quoteTitle')}</Text>
           <Text style={[styles.modalSubtitle, { color: tokens.textMuted }]}>{mechanic.name}</Text>
 
           {/* Message preview */}
@@ -113,7 +111,7 @@ function PreventivoModal({ visible, onClose, mechanic, message, tokens }: Preven
               style={[styles.actionTile, { backgroundColor: tokens.primary + '18', borderColor: tokens.primary + '40' }]}
             >
               <Ionicons name="share-outline" size={22} color={tokens.primary} />
-              <Text style={[styles.actionTileLabel, { color: tokens.primary }]}>Condividi</Text>
+              <Text style={[styles.actionTileLabel, { color: tokens.primary }]}>{t('mechanics.share')}</Text>
             </Pressable>
 
             <Pressable
@@ -129,12 +127,12 @@ function PreventivoModal({ visible, onClose, mechanic, message, tokens }: Preven
               style={[styles.actionTile, { backgroundColor: tokens.accent + '18', borderColor: tokens.accent + '40' }]}
             >
               <Ionicons name="mail-outline" size={22} color={tokens.accent} />
-              <Text style={[styles.actionTileLabel, { color: tokens.accent }]}>Email</Text>
+              <Text style={[styles.actionTileLabel, { color: tokens.accent }]}>{t('mechanics.email')}</Text>
             </Pressable>
           </View>
 
           <Pressable onPress={onClose} style={styles.cancelBtn}>
-            <Text style={[styles.cancelText, { color: tokens.textMuted }]}>Annulla</Text>
+            <Text style={[styles.cancelText, { color: tokens.textMuted }]}>{t('mechanics.cancel')}</Text>
           </Pressable>
         </Pressable>
       </Pressable>
@@ -151,6 +149,7 @@ export function MechanicsScreen() {
   const insets = useSafeAreaInsets();
   const preset = useThemeStore((s) => s.preset);
   const tokens = useMemo(() => themes[preset], [preset]);
+  const { t, formatDate } = useI18n();
   const { vehicles, selectedVehicleId, lastDiagnosis } = useVehicleStore();
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? vehicles[0];
 
@@ -170,7 +169,7 @@ export function MechanicsScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setError('Autorizzazione alla posizione necessaria per trovare officine vicine.');
+        setError(t('mechanics.permission'));
         return;
       }
       const current = await Location.getCurrentPositionAsync({});
@@ -180,14 +179,14 @@ export function MechanicsScreen() {
         make: selectedVehicle?.make,
       });
       if (data.length === 0) {
-        setError('Nessuna officina trovata nel raggio di 10 km. Prova un\'altra zona.');
+        setError(t('mechanics.empty'));
       } else {
         setList(data);
       }
     } catch (e) {
       const message = (e as Error).message;
       if (message === 'SERVIZIO_OFFICINE_TEMP_UNAVAILABLE' || message.includes('Overpass')) {
-        setError('Servizio mappe temporaneamente non disponibile. Riprova tra qualche minuto.');
+        setError(t('mechanics.overpass'));
       } else {
         setError(message);
       }
@@ -220,7 +219,7 @@ export function MechanicsScreen() {
     if (!selectedVehicle) return;
     await shareDiagnosisPdf({
       vehicle: `${selectedVehicle.make} ${selectedVehicle.model} · ${selectedVehicle.year}`,
-      date: new Date().toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }),
+      date: formatDate(new Date(), { day: 'numeric', month: 'long', year: 'numeric' }),
       probableIssue: lastDiagnosis.probableIssue,
       confidence: lastDiagnosis.confidence,
       urgency: lastDiagnosis.urgency,
@@ -240,7 +239,7 @@ export function MechanicsScreen() {
 
   const preventivoMessage = preventivoTarget
     ? buildPreventivoMessage(
-        preventivoTarget,
+        t,
         selectedVehicle
           ? { make: selectedVehicle.make, model: selectedVehicle.model, year: selectedVehicle.year }
           : undefined,
@@ -258,7 +257,7 @@ export function MechanicsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <Text style={[styles.pageTitle, { color: tokens.text }]}>Officine vicine</Text>
+        <Text style={[styles.pageTitle, { color: tokens.text }]}>{t('mechanics.title')}</Text>
         {selectedVehicle ? (
           <View style={styles.vehicleChip}>
             <Ionicons name="car-sport-outline" size={13} color={tokens.textMuted} />
@@ -268,7 +267,7 @@ export function MechanicsScreen() {
           </View>
         ) : (
           <Text style={[styles.pageSubtitle, { color: tokens.textMuted }]}>
-            Tutte le officine nelle vicinanze
+            {t('mechanics.subtitleAll')}
           </Text>
         )}
 
@@ -283,7 +282,7 @@ export function MechanicsScreen() {
             <Ionicons name="hardware-chip-outline" size={15} color={tokens.primary} />
             <View style={styles.diagnosisBannerText}>
               <Text style={[styles.diagnosisBannerLabel, { color: tokens.primary }]}>
-                Ultima diagnosi RepAIr
+                {t('mechanics.lastDiagnosis')}
               </Text>
               <Text style={[styles.diagnosisBannerIssue, { color: tokens.text }]} numberOfLines={2}>
                 {lastDiagnosis.probableIssue}
@@ -294,7 +293,7 @@ export function MechanicsScreen() {
 
         {/* Search button */}
         <PrimaryButton
-          label={loading ? 'Ricerca in corso…' : 'Cerca officine'}
+          label={loading ? t('mechanics.searching') : t('mechanics.search')}
           onPress={search}
           color={tokens.primary}
           disabled={loading}
@@ -304,7 +303,7 @@ export function MechanicsScreen() {
           <View style={styles.loadingRow}>
             <ActivityIndicator size="small" color={tokens.primary} />
             <Text style={[styles.loadingText, { color: tokens.textMuted }]}>
-              Ricerca su OpenStreetMap…
+              {t('mechanics.searchOsm')}
             </Text>
           </View>
         )}
@@ -326,7 +325,7 @@ export function MechanicsScreen() {
           <View style={styles.results}>
             <View style={styles.resultsHeader}>
               <Text style={[styles.resultsLabel, { color: tokens.textMuted }]}>
-                {list.length} officin{list.length !== 1 ? 'e' : 'a'} trovat{list.length !== 1 ? 'e' : 'a'}
+                {t('mechanics.found', { n: list.length })}
               </Text>
               {verifiedCount > 0 && (
                 <View
@@ -337,7 +336,7 @@ export function MechanicsScreen() {
                 >
                   <Ionicons name="shield-checkmark" size={11} color={tokens.primary} />
                   <Text style={[styles.verifiedBadgeText, { color: tokens.primary }]}>
-                    {verifiedCount} verificat{verifiedCount !== 1 ? 'e' : 'a'} da RepAIro
+                    {t('mechanics.verifiedCount', { n: verifiedCount })}
                   </Text>
                 </View>
               )}
@@ -415,7 +414,7 @@ export function MechanicsScreen() {
                     style={[styles.actionBtn, { borderColor: tokens.primary + '70' }]}
                   >
                     <Ionicons name="map-outline" size={14} color={tokens.primary} />
-                    <Text style={[styles.actionBtnText, { color: tokens.primary }]}>Mappa</Text>
+                    <Text style={[styles.actionBtnText, { color: tokens.primary }]}>{t('mechanics.map')}</Text>
                   </Pressable>
                   {item.phone ? (
                     <Pressable
@@ -423,7 +422,7 @@ export function MechanicsScreen() {
                       style={[styles.actionBtn, { borderColor: tokens.accent + '70' }]}
                     >
                       <Ionicons name="call-outline" size={14} color={tokens.accent} />
-                      <Text style={[styles.actionBtnText, { color: tokens.accent }]}>Chiama</Text>
+                      <Text style={[styles.actionBtnText, { color: tokens.accent }]}>{t('mechanics.call')}</Text>
                     </Pressable>
                   ) : null}
                   {item.website ? (
@@ -435,7 +434,7 @@ export function MechanicsScreen() {
                       style={[styles.actionBtn, { borderColor: tokens.warning + '70' }]}
                     >
                       <Ionicons name="globe-outline" size={14} color={tokens.warning} />
-                      <Text style={[styles.actionBtnText, { color: tokens.warning }]}>Sito</Text>
+                      <Text style={[styles.actionBtnText, { color: tokens.warning }]}>{t('mechanics.website')}</Text>
                     </Pressable>
                   ) : null}
                 </View>
@@ -452,7 +451,7 @@ export function MechanicsScreen() {
                   >
                     <Ionicons name="document-text-outline" size={14} color={tokens.primary} />
                     <Text style={[styles.ticketBtnText, { color: tokens.primary }]}>
-                      Richiedi preventivo
+                      {t('mechanics.requestQuote')}
                     </Text>
                   </Pressable>
 
@@ -466,7 +465,7 @@ export function MechanicsScreen() {
                     >
                       <Ionicons name="share-outline" size={14} color={tokens.accent} />
                       <Text style={[styles.ticketBtnText, { color: tokens.accent }]}>
-                        Invia report
+                        {t('mechanics.sendReport')}
                       </Text>
                       <View style={[styles.proBadge, { backgroundColor: tokens.accent }]}>
                         <Text style={styles.proBadgeText}>PRO</Text>

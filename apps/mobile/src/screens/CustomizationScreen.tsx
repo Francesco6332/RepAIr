@@ -6,6 +6,7 @@ import { useThemeStore } from '../store/useThemeStore';
 import { ThemePreset, themes } from '../theme/tokens';
 import { GlassCard } from '../components/GlassCard';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { useI18n } from '../i18n';
 
 const presets = Object.keys(themes) as ThemePreset[];
 
@@ -13,12 +14,13 @@ export function CustomizationScreen() {
   const Gradient = LinearGradient as unknown as React.ComponentType<any>;
   const { preset, setPreset } = useThemeStore();
   const tokens = useMemo(() => themes[preset], [preset]);
+  const { t } = useI18n();
 
   return (
     <Gradient colors={[tokens.bg, tokens.bgAlt]} style={styles.page}>
-      <Text style={[styles.title, { color: tokens.text }]}>Customization</Text>
+      <Text style={[styles.title, { color: tokens.text }]}>{t('customization.title')}</Text>
       <GlassCard backgroundColor={tokens.glass}>
-        <Text style={[styles.subtitle, { color: tokens.textMuted }]}>Automotive presets</Text>
+        <Text style={[styles.subtitle, { color: tokens.textMuted }]}>{t('customization.subtitle')}</Text>
         <View style={styles.grid}>
           {presets.map((item) => {
             const palette = themes[item];
@@ -38,7 +40,7 @@ export function CustomizationScreen() {
         </View>
       </GlassCard>
 
-      <PrimaryButton label="Sign out" onPress={() => supabase.auth.signOut()} color={tokens.warning} />
+      <PrimaryButton label={t('profile.signout')} onPress={() => supabase.auth.signOut()} color={tokens.warning} />
     </Gradient>
   );
 }

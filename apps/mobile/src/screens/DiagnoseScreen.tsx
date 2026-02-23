@@ -28,6 +28,7 @@ import { useThemeStore } from '../store/useThemeStore';
 import { themes } from '../theme/tokens';
 import { ChatMessage, PrediagnosisResult } from '@repairo/shared';
 import { useVehicleStore } from '../store/useVehicleStore';
+import { useI18n } from '../i18n';
 
 type Props = { session: Session };
 
@@ -135,6 +136,7 @@ export function DiagnoseScreen({ session }: Props) {
   const insets = useSafeAreaInsets();
   const preset = useThemeStore((s) => s.preset);
   const tokens = useMemo(() => themes[preset], [preset]);
+  const { formatDate } = useI18n();
   const { vehicles, selectedVehicleId, setLastDiagnosis } = useVehicleStore();
 
   // Wizard state
@@ -284,7 +286,7 @@ export function DiagnoseScreen({ session }: Props) {
     try {
       await shareDiagnosisPdf({
         vehicle: selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} · ${selectedVehicle.year}` : 'Veicolo sconosciuto',
-        date: new Date().toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }),
+        date: formatDate(new Date(), { day: 'numeric', month: 'long', year: 'numeric' }),
         probableIssue: result.probableIssue,
         confidence: result.confidence,
         urgency: result.urgency,

@@ -26,6 +26,7 @@ import { computeHealthScore, HealthScore } from '../utils/healthScore';
 import { HealthScoreWidget } from '../components/HealthScoreWidget';
 import { MaintenanceEntry, MaintenanceType, addMaintenanceEntry, listMaintenanceByVehicle } from '../services/maintenanceLog';
 import { Reminder, ReminderType, addReminder, completeReminder, daysUntil, listRemindersByVehicle } from '../services/reminders';
+import { useI18n } from '../i18n';
 
 type Props = { session: Session };
 
@@ -45,7 +46,7 @@ function buildTimeline(diagnoses: DiagnosisRecord[], maintenance: MaintenanceEnt
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
-  return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString();
 }
 
 const URGENCY_COLOR: Record<string, string> = {
@@ -359,7 +360,7 @@ function VehicleDetailSection({ vehicleId, userId, tokens }: { vehicleId: string
                   <Text style={[detailStyles.reminderTitle, { color: tokens.text }]}>{r.title}</Text>
                   <Text style={[detailStyles.reminderDate, { color }]}>
                     {overdue ? `Scaduto ${Math.abs(days)} giorni fa` : days === 0 ? 'Scade oggi' : `Scade tra ${days} giorni`}
-                    {' · '}{new Date(r.due_date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {' · '}{new Date(r.due_date).toLocaleDateString()}
                   </Text>
                 </View>
                 <Pressable
@@ -468,6 +469,7 @@ export function VehiclesScreen({ session }: Props) {
   const insets = useSafeAreaInsets();
   const preset = useThemeStore((s) => s.preset);
   const tokens = useMemo(() => themes[preset], [preset]);
+  const { t } = useI18n();
   const { vehicles, selectedVehicleId, setSelectedVehicleId, setVehicles } = useVehicleStore();
 
   const [make, setMake] = useState('');
@@ -497,7 +499,7 @@ export function VehiclesScreen({ session }: Props) {
 
   const onAdd = async () => {
     setError(null);
-    if (!make || !model || !year) { setError('Marca, modello e anno sono obbligatori.'); return; }
+    if (!make || !model || !year) { setError(t('vehicles.required')); return; }
     setAdding(true);
     try {
       Keyboard.dismiss();
@@ -525,28 +527,28 @@ export function VehiclesScreen({ session }: Props) {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
-          <Text style={[styles.pageTitle, { color: tokens.text }]}>Il mio garage</Text>
+          <Text style={[styles.pageTitle, { color: tokens.text }]}>{t('vehicles.title')}</Text>
           <Text style={[styles.pageSubtitle, { color: tokens.textMuted }]}>
-            {vehicles.length} veicolo{vehicles.length !== 1 ? 'i' : ''} registrato{vehicles.length !== 1 ? 'i' : ''}
+            {t('vehicles.registered', { n: vehicles.length })}
           </Text>
 
           {/* Add vehicle card */}
           <GlassCard backgroundColor={tokens.glass} style={styles.card}>
-            <Text style={[styles.sectionTitle, { color: tokens.text }]}>Aggiungi veicolo</Text>
+            <Text style={[styles.sectionTitle, { color: tokens.text }]}>{t('vehicles.addVehicle')}</Text>
             <View style={styles.rowInputs}>
               <View style={styles.halfInput}>
-                <GlassInput tokens={tokens} label="Marca" value={make} onChangeText={setMake} placeholder="es. Ford" returnKeyType="next" autoCapitalize="words" />
+                <GlassInput tokens={tokens} label={t('vehicles.make')} value={make} onChangeText={setMake} placeholder="es. Ford" returnKeyType="next" autoCapitalize="words" />
               </View>
               <View style={styles.halfInput}>
-                <GlassInput tokens={tokens} label="Modello" value={model} onChangeText={setModel} placeholder="es. Focus" returnKeyType="next" autoCapitalize="words" />
+                <GlassInput tokens={tokens} label={t('vehicles.model')} value={model} onChangeText={setModel} placeholder="es. Focus" returnKeyType="next" autoCapitalize="words" />
               </View>
             </View>
             <View style={styles.rowInputs}>
               <View style={styles.halfInput}>
-                <GlassInput tokens={tokens} label="Anno" value={year} onChangeText={setYear} placeholder="2020" keyboardType="number-pad" returnKeyType="next" />
+                <GlassInput tokens={tokens} label={t('vehicles.year')} value={year} onChangeText={setYear} placeholder="2020" keyboardType="number-pad" returnKeyType="next" />
               </View>
               <View style={styles.halfInput}>
-                <GlassInput tokens={tokens} label="Km" value={mileage} onChangeText={setMileage} placeholder="50000" keyboardType="number-pad" returnKeyType="done" onSubmitEditing={onAdd} />
+                <GlassInput tokens={tokens} label={t('vehicles.km')} value={mileage} onChangeText={setMileage} placeholder="50000" keyboardType="number-pad" returnKeyType="done" onSubmitEditing={onAdd} />
               </View>
             </View>
             {error ? (
@@ -555,13 +557,13 @@ export function VehiclesScreen({ session }: Props) {
                 <Text style={[styles.errorText, { color: tokens.danger }]}>{error}</Text>
               </View>
             ) : null}
-            <PrimaryButton label={adding ? 'Aggiunta…' : 'Aggiungi veicolo'} onPress={onAdd} color={tokens.primary} disabled={adding} />
+            <PrimaryButton label={adding ? t('vehicles.adding') : t('vehicles.addCta')} onPress={onAdd} color={tokens.primary} disabled={adding} />
           </GlassCard>
 
           {/* Vehicle list */}
           {vehicles.length > 0 ? (
             <View style={styles.listContainer}>
-              <Text style={[styles.sectionTitle, { color: tokens.text }]}>I tuoi veicoli</Text>
+              <Text style={[styles.sectionTitle, { color: tokens.text }]}>{t('vehicles.yourVehicles')}</Text>
               {vehicles.map((item) => {
                 const selected = selectedVehicleId === item.id;
                 const expanded = expandedId === item.id;
@@ -582,7 +584,7 @@ export function VehiclesScreen({ session }: Props) {
                             {selected ? (
                               <View style={[styles.activePill, { backgroundColor: tokens.primary + '22', borderColor: tokens.primary + '60' }]}>
                                 <Ionicons name="checkmark-circle" size={12} color={tokens.primary} />
-                                <Text style={[styles.activePillText, { color: tokens.primary }]}>Attivo</Text>
+                                <Text style={[styles.activePillText, { color: tokens.primary }]}>{t('vehicles.active')}</Text>
                               </View>
                             ) : null}
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

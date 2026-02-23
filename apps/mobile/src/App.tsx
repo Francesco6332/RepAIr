@@ -8,6 +8,7 @@ import { Session } from '@supabase/supabase-js';
 import { RootNavigator } from './navigation/RootNavigator';
 import { supabase } from './services/supabase';
 import { registerForPushNotifications } from './services/notifications';
+import { I18nProvider } from './i18n';
 
 const ONBOARDED_KEY = '@repairo/onboarded_v1';
 
@@ -67,12 +68,14 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
-      <RootNavigator
-        session={session}
-        needsOnboarding={needsOnboarding}
-        onOnboardingComplete={handleOnboardingComplete}
-      />
+      <I18nProvider>
+        <StatusBar style="light" />
+        <RootNavigator
+          session={session}
+          needsOnboarding={needsOnboarding}
+          onOnboardingComplete={handleOnboardingComplete}
+        />
+      </I18nProvider>
     </SafeAreaProvider>
   );
 }

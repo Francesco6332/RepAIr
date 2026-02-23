@@ -13,23 +13,24 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { setPlan } from '../services/usage';
+import { useI18n } from '../i18n';
 
 type Props = {
   onComplete: () => void;
 };
 
-type FeatureRow = { label: string; free: boolean; pro: boolean };
+type FeatureRow = { labelKey: string; free: boolean; pro: boolean };
 
 const FEATURES: FeatureRow[] = [
-  { label: 'AI text diagnosis', free: true, pro: true },
-  { label: 'Vehicle management', free: true, pro: true },
-  { label: 'Mechanic finder', free: true, pro: true },
-  { label: 'Daily diagnoses', free: true, pro: true },
-  { label: 'Photo analysis', free: false, pro: true },
-  { label: 'Audio analysis', free: false, pro: true },
-  { label: 'Diagnosis history', free: false, pro: true },
-  { label: 'Priority AI', free: false, pro: true },
-  { label: 'Export reports', free: false, pro: true },
+  { labelKey: 'pricing.feature.aiText', free: true, pro: true },
+  { labelKey: 'pricing.feature.vehicles', free: true, pro: true },
+  { labelKey: 'pricing.feature.mechanics', free: true, pro: true },
+  { labelKey: 'pricing.feature.daily', free: true, pro: true },
+  { labelKey: 'pricing.feature.photo', free: false, pro: true },
+  { labelKey: 'pricing.feature.audio', free: false, pro: true },
+  { labelKey: 'pricing.feature.history', free: false, pro: true },
+  { labelKey: 'pricing.feature.priority', free: false, pro: true },
+  { labelKey: 'pricing.feature.export', free: false, pro: true },
 ];
 
 const FREE_COLOR = '#34D399';
@@ -41,6 +42,7 @@ function FeatureCheck({ ok, color }: { ok: boolean; color: string }) {
 }
 
 export function PricingScreen({ onComplete }: Props) {
+  const { t } = useI18n();
   const Gradient = LinearGradient as unknown as React.ComponentType<any>;
   const GlassBlur = BlurView as unknown as React.ComponentType<any>;
   const insets = useSafeAreaInsets();
@@ -62,9 +64,9 @@ export function PricingScreen({ onComplete }: Props) {
   const onSelectPro = () => {
     animatePro();
     Alert.alert(
-      'Pro Plan — Coming Soon',
-      "We're finalizing the Pro plan with unlimited diagnoses, photo & audio analysis, and much more.\n\nStay on Free for now and we'll notify you when Pro launches.",
-      [{ text: 'Got it', onPress: onComplete }]
+      t('pricing.alertTitle'),
+      t('pricing.alertBody'),
+      [{ text: t('pricing.alertOk'), onPress: onComplete }]
     );
   };
 
@@ -87,12 +89,12 @@ export function PricingScreen({ onComplete }: Props) {
           <View style={styles.badgeRow}>
             <View style={styles.plansBadge}>
               <Ionicons name="sparkles" size={12} color={PRO_COLOR} />
-              <Text style={[styles.plansBadgeText, { color: PRO_COLOR }]}>PRICING PLANS</Text>
+              <Text style={[styles.plansBadgeText, { color: PRO_COLOR }]}>{t('pricing.badge')}</Text>
             </View>
           </View>
-          <Text style={styles.heading}>Choose your plan</Text>
+          <Text style={styles.heading}>{t('pricing.title')}</Text>
           <Text style={styles.subheading}>
-            Start free. Upgrade when you need more power.
+            {t('pricing.subtitle')}
           </Text>
         </View>
 
@@ -117,17 +119,17 @@ export function PricingScreen({ onComplete }: Props) {
               </View>
               <View style={styles.priceRow}>
                 <Text style={[styles.priceMain, { color: '#fff' }]}>€0</Text>
-                <Text style={styles.pricePer}>/month</Text>
+                <Text style={styles.pricePer}>{t('pricing.perMonth')}</Text>
               </View>
               <Text style={[styles.planLimitNote, { color: FREE_COLOR }]}>
-                5 diagnoses · every day
+                {t('pricing.freeDaily')}
               </Text>
             </View>
 
             {/* Feature list */}
             <View style={styles.featureRows}>
               {FEATURES.map((f) => (
-                <View key={f.label} style={styles.featureRow}>
+                <View key={f.labelKey} style={styles.featureRow}>
                   <FeatureCheck ok={f.free} color={FREE_COLOR} />
                   <Text
                     style={[
@@ -135,15 +137,15 @@ export function PricingScreen({ onComplete }: Props) {
                       { color: f.free ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.25)' },
                     ]}
                   >
-                    {f.label}
-                    {f.label === 'Daily diagnoses' ? ' (5/day)' : ''}
+                    {t(f.labelKey)}
+                    {f.labelKey === 'pricing.feature.daily' ? t('pricing.dailySuffixFree') : ''}
                   </Text>
                 </View>
               ))}
             </View>
 
             <Pressable onPress={onSelectFree} style={[styles.cta, { borderColor: FREE_COLOR + '60', backgroundColor: FREE_COLOR + '15' }]}>
-              <Text style={[styles.ctaText, { color: FREE_COLOR }]}>Continue for Free</Text>
+              <Text style={[styles.ctaText, { color: FREE_COLOR }]}>{t('pricing.freeCta')}</Text>
             </Pressable>
           </View>
         </View>
@@ -166,7 +168,7 @@ export function PricingScreen({ onComplete }: Props) {
           <View style={styles.popularBadge}>
             <Gradient colors={[PRO_COLOR, '#7C3AED']} style={styles.popularBadgeGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
               <Ionicons name="sparkles" size={11} color="#fff" />
-              <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
+              <Text style={styles.popularBadgeText}>{t('pricing.popular')}</Text>
             </Gradient>
           </View>
 
@@ -177,20 +179,20 @@ export function PricingScreen({ onComplete }: Props) {
               </View>
               <View style={styles.priceRow}>
                 <Text style={[styles.priceMain, { color: '#fff' }]}>€9.99</Text>
-                <Text style={styles.pricePer}>/month</Text>
+                <Text style={styles.pricePer}>{t('pricing.perMonth')}</Text>
               </View>
               <Text style={[styles.planLimitNote, { color: PRO_COLOR }]}>
-                7-day free trial · cancel anytime
+                {t('pricing.trial')}
               </Text>
             </View>
 
             <View style={styles.featureRows}>
               {FEATURES.map((f) => (
-                <View key={f.label} style={styles.featureRow}>
+                <View key={f.labelKey} style={styles.featureRow}>
                   <FeatureCheck ok={f.pro} color={PRO_COLOR} />
                   <Text style={[styles.featureLabel, { color: 'rgba(255,255,255,0.9)' }]}>
-                    {f.label}
-                    {f.label === 'Daily diagnoses' ? ' (unlimited)' : ''}
+                    {t(f.labelKey)}
+                    {f.labelKey === 'pricing.feature.daily' ? t('pricing.dailySuffixPro') : ''}
                   </Text>
                 </View>
               ))}
@@ -212,7 +214,7 @@ export function PricingScreen({ onComplete }: Props) {
                   end={{ x: 0, y: 1 }}
                 />
               </View>
-              <Text style={[styles.ctaText, { color: '#fff' }]}>Start 7-Day Free Trial</Text>
+              <Text style={[styles.ctaText, { color: '#fff' }]}>{t('pricing.proCta')}</Text>
               <Ionicons name="arrow-forward" size={14} color="#fff" />
             </Pressable>
           </View>
@@ -220,10 +222,10 @@ export function PricingScreen({ onComplete }: Props) {
 
         {/* Reassurance row */}
         <View style={styles.reassurance}>
-          {['No card required for Free', 'Cancel Pro anytime', 'Secure payments'].map((t) => (
-            <View key={t} style={styles.reassuranceItem}>
+          {[t('pricing.reassurance.noCard'), t('pricing.reassurance.cancel'), t('pricing.reassurance.secure')].map((label) => (
+            <View key={label} style={styles.reassuranceItem}>
               <Ionicons name="shield-checkmark-outline" size={13} color="rgba(255,255,255,0.35)" />
-              <Text style={styles.reassuranceText}>{t}</Text>
+              <Text style={styles.reassuranceText}>{label}</Text>
             </View>
           ))}
         </View>

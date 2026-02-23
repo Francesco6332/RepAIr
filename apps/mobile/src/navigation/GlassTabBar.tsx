@@ -6,18 +6,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStore } from '../store/useThemeStore';
 import { themes } from '../theme/tokens';
+import { useI18n } from '../i18n';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
-const TAB_CONFIG: Record<string, { active: IoniconName; inactive: IoniconName; label: string }> = {
-  Diagnose: { active: 'car-sport', inactive: 'car-sport-outline', label: 'Diagnose' },
-  Vehicles: { active: 'car', inactive: 'car-outline', label: 'Vehicles' },
-  Mechanics: { active: 'map', inactive: 'map-outline', label: 'Nearby' },
-  History: { active: 'time', inactive: 'time-outline', label: 'History' },
-  Profile: { active: 'person-circle', inactive: 'person-circle-outline', label: 'Profile' },
+const TAB_CONFIG: Record<string, { active: IoniconName; inactive: IoniconName; labelKey: string }> = {
+  Diagnose: { active: 'car-sport', inactive: 'car-sport-outline', labelKey: 'tab.diagnose' },
+  Vehicles: { active: 'car', inactive: 'car-outline', labelKey: 'tab.vehicles' },
+  Mechanics: { active: 'map', inactive: 'map-outline', labelKey: 'tab.mechanics' },
+  History: { active: 'time', inactive: 'time-outline', labelKey: 'tab.history' },
+  Profile: { active: 'person-circle', inactive: 'person-circle-outline', labelKey: 'tab.profile' },
 };
 
 export function GlassTabBar({ state, navigation }: BottomTabBarProps) {
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const preset = useThemeStore((s) => s.preset);
   const tokens = useMemo(() => themes[preset], [preset]);
@@ -40,7 +42,7 @@ export function GlassTabBar({ state, navigation }: BottomTabBarProps) {
           const config = TAB_CONFIG[route.name] ?? {
             active: 'ellipse' as IoniconName,
             inactive: 'ellipse-outline' as IoniconName,
-            label: route.name,
+            labelKey: route.name,
           };
 
           const onPress = () => {
@@ -78,7 +80,7 @@ export function GlassTabBar({ state, navigation }: BottomTabBarProps) {
               <Text
                 style={[styles.label, { color: isFocused ? tokens.primary : tokens.textMuted }]}
               >
-                {config.label}
+                {t(config.labelKey)}
               </Text>
             </Pressable>
           );

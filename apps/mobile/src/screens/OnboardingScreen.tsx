@@ -12,6 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useI18n } from '../i18n';
 
 const { width, height } = Dimensions.get('window');
 
@@ -19,8 +20,8 @@ type Slide = {
   key: string;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   accent: string;
-  title: string;
-  subtitle: string;
+  titleKey: string;
+  subtitleKey: string;
   features?: string[];
   bgColors: [string, string, string];
 };
@@ -30,35 +31,35 @@ const SLIDES: Slide[] = [
     key: 'welcome',
     icon: 'car-sport',
     accent: '#34D399',
-    title: 'Your AI\nCar Expert',
-    subtitle: 'Diagnose any issue, find trusted mechanics, and manage your fleet — all in one app.',
+    titleKey: 'onboarding.welcomeTitle',
+    subtitleKey: 'onboarding.welcomeSubtitle',
     bgColors: ['#080B12', '#0a1a2e', '#0d2244'],
   },
   {
     key: 'diagnosis',
     icon: 'pulse',
     accent: '#22D3EE',
-    title: 'AI Diagnosis\nin Seconds',
-    subtitle: 'Describe the problem in words, snap a photo, or record the noise. Claude AI does the rest.',
-    features: ['Text description', 'Photo analysis', 'Audio detection'],
+    titleKey: 'onboarding.diagnosisTitle',
+    subtitleKey: 'onboarding.diagnosisSubtitle',
+    features: ['onboarding.feature.text', 'onboarding.feature.photo', 'onboarding.feature.audio'],
     bgColors: ['#080B12', '#031820', '#052330'],
   },
   {
     key: 'mechanics',
     icon: 'map',
     accent: '#A78BFA',
-    title: 'Expert Help\nNearby',
-    subtitle: 'Find vetted workshops sorted by distance. Call or navigate directly from the app.',
-    features: ['GPS-based search', 'Distance & hours', 'One-tap call'],
+    titleKey: 'onboarding.mechanicsTitle',
+    subtitleKey: 'onboarding.mechanicsSubtitle',
+    features: ['onboarding.feature.gps', 'onboarding.feature.distance', 'onboarding.feature.call'],
     bgColors: ['#080B12', '#0e0a20', '#180d34'],
   },
   {
     key: 'garage',
     icon: 'car',
     accent: '#FBBF24',
-    title: 'Your Digital\nGarage',
-    subtitle: 'Add all your vehicles, switch between them instantly, and always have context for your AI.',
-    features: ['Multiple vehicles', 'Fuel type tracking', 'One-tap select'],
+    titleKey: 'onboarding.garageTitle',
+    subtitleKey: 'onboarding.garageSubtitle',
+    features: ['onboarding.feature.multiple', 'onboarding.feature.fuel', 'onboarding.feature.select'],
     bgColors: ['#080B12', '#1a1003', '#2a1a05'],
   },
 ];
@@ -68,6 +69,7 @@ type Props = {
 };
 
 export function OnboardingScreen({ onContinue }: Props) {
+  const { t } = useI18n();
   const Gradient = LinearGradient as unknown as React.ComponentType<any>;
   const insets = useSafeAreaInsets();
   const flatRef = useRef<FlatList<Slide>>(null);
@@ -117,7 +119,7 @@ export function OnboardingScreen({ onContinue }: Props) {
         onPress={onContinue}
         style={[styles.skipBtn, { top: insets.top + 16 }]}
       >
-        <Text style={styles.skipText}>Skip</Text>
+        <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
       </Pressable>
 
       {/* Slides */}
@@ -147,15 +149,15 @@ export function OnboardingScreen({ onContinue }: Props) {
 
             {/* Content */}
             <View style={[styles.content, { paddingBottom: insets.bottom + 180 }]}>
-              <Text style={[styles.title, { color: '#FFFFFF' }]}>{item.title}</Text>
-              <Text style={styles.subtitle}>{item.subtitle}</Text>
+              <Text style={[styles.title, { color: '#FFFFFF' }]}>{t(item.titleKey)}</Text>
+              <Text style={styles.subtitle}>{t(item.subtitleKey)}</Text>
 
               {item.features ? (
                 <View style={styles.featureList}>
                   {item.features.map((f) => (
                     <View key={f} style={styles.featureChip}>
                       <View style={[styles.featureDot, { backgroundColor: item.accent }]} />
-                      <Text style={[styles.featureText, { color: item.accent }]}>{f}</Text>
+                      <Text style={[styles.featureText, { color: item.accent }]}>{t(f)}</Text>
                     </View>
                   ))}
                 </View>
@@ -200,7 +202,7 @@ export function OnboardingScreen({ onContinue }: Props) {
             end={{ x: 0, y: 1 }}
           />
           <Text style={styles.nextBtnText}>
-            {isLast ? 'See Plans' : 'Next'}
+            {isLast ? t('onboarding.seePlans') : t('onboarding.next')}
           </Text>
           <Ionicons
             name={isLast ? 'sparkles' : 'arrow-forward'}

@@ -19,6 +19,7 @@ import { themes } from '../theme/tokens';
 import { DiagnosisRecord, listDiagnoses } from '../services/diagnoses';
 import { shareDiagnosisPdf } from '../utils/buildDiagnosisPdf';
 import { getCurrentPlan } from '../services/usage';
+import { useI18n } from '../i18n';
 
 type Props = { session: Session };
 
@@ -35,16 +36,20 @@ const TYPE_ICON: Record<string, React.ComponentProps<typeof Ionicons>['name']> =
   audio: 'mic-outline',
 };
 
-function timeAgo(dateStr: string): string {
+function timeAgo(
+  dateStr: string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+  formatDate: (date: string | number | Date, options?: Intl.DateTimeFormatOptions) => string
+): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t('history.justNow');
+  if (minutes < 60) return t('history.minAgo', { n: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t('history.hourAgo', { n: hours });
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
+  if (days < 30) return t('history.dayAgo', { n: days });
+  return formatDate(dateStr);
 }
 
 export function HistoryScreen({ session }: Props) {
@@ -52,6 +57,7 @@ export function HistoryScreen({ session }: Props) {
   const insets = useSafeAreaInsets();
   const preset = useThemeStore((s) => s.preset);
   const tokens = useMemo(() => themes[preset], [preset]);
+  const { t, formatDate } = useI18n();
 
   const [records, setRecords] = useState<DiagnosisRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,8 +95,8 @@ export function HistoryScreen({ session }: Props) {
       await shareDiagnosisPdf({
         vehicle: item.vehicles
           ? `${item.vehicles.make} ${item.vehicles.model} · ${item.vehicles.year}`
-          : 'Unknown vehicle',
-        date: new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+          : t('history.unknownVehicle'),
+        date: formatDate(item.created_at, { day: 'numeric', month: 'long', year: 'numeric' }),
         probableIssue: item.summary,
         confidence: item.confidence,
         urgency: item.urgency ?? 'low',
@@ -117,10 +123,10 @@ export function HistoryScreen({ session }: Props) {
             <Ionicons name={typeIcon} size={15} color={tokens.primary} />
           </View>
           <Text style={[styles.summary, { color: tokens.text }]} numberOfLines={2}>
-            {item.summary ?? 'Unknown issue'}
+            {item.summary ?? t('history.unknownIssue')}
           </Text>
           <Text style={[styles.time, { color: tokens.textMuted }]}>
-            {timeAgo(item.created_at)}
+            {timeAgo(item.created_at, t, formatDate)}
           </Text>
         </View>
 
@@ -168,7 +174,7 @@ export function HistoryScreen({ session }: Props) {
               color={tokens.primary}
             />
             <Text style={[styles.shareBtnText, { color: tokens.primary }]}>
-              {sharingId === item.id ? 'Generating…' : 'PDF'}
+              {sharingId === item.id ? t('history.generating') : 'PDF'}
             </Text>
           </Pressable>
         </View>
@@ -181,8 +187,8 @@ export function HistoryScreen({ session }: Props) {
       colors={[tokens.bg, tokens.bgAlt, tokens.bgDeep]}
       style={[styles.page, { paddingTop: insets.top + 16 }]}
     >
-      <Text style={[styles.pageTitle, { color: tokens.text }]}>History</Text>
-      <Text style={[styles.pageSubtitle, { color: tokens.textMuted }]}>Past diagnoses</Text>
+      <Text style={[styles.pageTitle, { color: tokens.text }]}>{t('history.title')}</Text>
+      <Text style={[styles.pageSubtitle, { color: tokens.textMuted }]}>{t('history.subtitle')}</Text>
 
       <PaywallModal
         visible={paywallVisible}
@@ -208,9 +214,9 @@ export function HistoryScreen({ session }: Props) {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Ionicons name="time-outline" size={48} color={tokens.textMuted} />
-              <Text style={[styles.emptyTitle, { color: tokens.text }]}>No diagnoses yet</Text>
+              <Text style={[styles.emptyTitle, { color: tokens.text }]}>{t('history.emptyTitle')}</Text>
               <Text style={[styles.emptySubtitle, { color: tokens.textMuted }]}>
-                Your diagnosis history will appear here
+                {t('history.emptySubtitle')}
               </Text>
             </View>
           }
