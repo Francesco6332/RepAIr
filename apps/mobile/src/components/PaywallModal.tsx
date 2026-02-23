@@ -18,6 +18,7 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   tokens: ThemeTokens;
+  reason?: 'quota' | 'pdf';
 };
 
 const PRO_COLOR = '#A78BFA';
@@ -30,7 +31,7 @@ const PRO_PERKS = [
   { icon: 'document-text' as const, label: 'Export & share reports' },
 ];
 
-export function PaywallModal({ visible, onClose, tokens }: Props) {
+export function PaywallModal({ visible, onClose, tokens, reason = 'quota' }: Props) {
   const GlassBlur = BlurView as unknown as React.ComponentType<any>;
   const Gradient = LinearGradient as unknown as React.ComponentType<any>;
 
@@ -96,10 +97,13 @@ export function PaywallModal({ visible, onClose, tokens }: Props) {
             </View>
 
             {/* Title */}
-            <Text style={styles.title}>Daily limit reached</Text>
+            <Text style={styles.title}>
+              {reason === 'pdf' ? 'Report PDF · Pro' : 'Limite giornaliero raggiunto'}
+            </Text>
             <Text style={styles.subtitle}>
-              You've used all {FREE_DAILY_LIMIT} free diagnoses for today.{'\n'}
-              Limit resets at midnight.
+              {reason === 'pdf'
+                ? `Il report PDF completo da inviare al meccanico\nè disponibile con il piano Pro.`
+                : `Hai usato tutte le ${FREE_DAILY_LIMIT} diagnosi gratuite di oggi.\nIl limite si azzera a mezzanotte.`}
             </Text>
 
             {/* Divider with "unlock with pro" */}
@@ -143,7 +147,9 @@ export function PaywallModal({ visible, onClose, tokens }: Props) {
 
             {/* Secondary */}
             <Pressable onPress={onClose} style={styles.laterBtn}>
-              <Text style={styles.laterText}>Come back tomorrow</Text>
+              <Text style={styles.laterText}>
+                {reason === 'pdf' ? 'Continua senza PDF' : 'Torna domani'}
+              </Text>
             </Pressable>
           </View>
         </Animated.View>

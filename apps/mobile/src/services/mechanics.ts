@@ -1,4 +1,39 @@
 import { MechanicCard } from '@repairo/shared';
+import { supabase } from './supabase';
+
+export const ADDRESS_UNAVAILABLE = 'Indirizzo non disponibile';
+
+type VerifiedWorkshop = {
+  id: string;
+  brand: string;
+  workshop_name: string;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+};
+
+async function fetchVerifiedWorkshops(lat: number, lng: number): Promise<VerifiedWorkshop[]> {
+  // ~10 km bounding box at Italian latitudes
+  const delta = 0.09;
+  const { data } = await supabase
+    .from('authorized_workshops')
+    .select('id, brand, workshop_name, address, lat, lng')
+    .gte('lat', lat - delta)
+    .lte('lat', lat + delta)
+    .gte('lng', lng - delta)
+    .lte('lng', lng + delta)
+    .limit(50);
+  return (data ?? []) as VerifiedWorkshop[];
+}
+
+function isVerifiedMatch(osmName: string, verified: VerifiedWorkshop[]): boolean {
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const lower = normalize(osmName);
+  return verified.some((v) => {
+    const vName = normalize(v.workshop_name);
+    return lower.includes(vName) || vName.includes(lower);
+  });
+}
 
 type OverpassElement = {
   id: number;
@@ -23,12 +58,13 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
 function normalizePlace(
   p: OverpassElement,
   origin: { lat: number; lng: number },
-  make?: string
+  make?: string,
+  verified: VerifiedWorkshop[] = []
 ): MechanicCard {
   const lat = p.lat ?? p.center?.lat ?? origin.lat;
   const lng = p.lon ?? p.center?.lon ?? origin.lng;
   const distanceKm = haversineKm(origin.lat, origin.lng, lat, lng);
-  const name = p.tags?.name ?? `Workshop ${p.id}`;
+  const name = p.tags?.name ?? `Officina ${p.id}`;
   const lower = name.toLowerCase();
 
   const isOfficialDealer =
@@ -39,7 +75,7 @@ function normalizePlace(
   const street = p.tags?.['addr:street'];
   const housenumber = p.tags?.['addr:housenumber'];
   const city = p.tags?.['addr:city'];
-  const address = [street, housenumber, city].filter(Boolean).join(' ') || 'Address unavailable';
+  const address = [street, housenumber, city].filter(Boolean).join(' ') || ADDRESS_UNAVAILABLE;
 
   // OSM doesn't provide ratings — use opening_hours/phone presence as a quality proxy
   const hasDetails = Boolean(p.tags?.phone || p.tags?.['opening_hours'] || p.tags?.website);
@@ -53,6 +89,7 @@ function normalizePlace(
     distanceKm,
     address,
     isOfficialDealer,
+    isVerifiedRepAIro: isVerifiedMatch(name, verified),
     phone: p.tags?.phone,
     website: p.tags?.website,
     openingHours: p.tags?.['opening_hours']
@@ -90,7 +127,12 @@ export async function findMechanicsNearby(input: {
   radiusKm?: number;
 }): Promise<MechanicCard[]> {
   const radius = (input.radiusKm ?? 10) * 1000;
-  const elements = await queryOverpass(buildOverpassQuery(input.lat, input.lng, radius));
+
+  // Fetch OSM results and verified workshops in parallel
+  const [elements, verified] = await Promise.all([
+    queryOverpass(buildOverpassQuery(input.lat, input.lng, radius)),
+    fetchVerifiedWorkshops(input.lat, input.lng).catch(() => [] as VerifiedWorkshop[]),
+  ]);
 
   const seen = new Set<string>();
   const results = elements
@@ -100,7 +142,12 @@ export async function findMechanicsNearby(input: {
       seen.add(id);
       return true;
     })
-    .map((p) => normalizePlace(p, { lat: input.lat, lng: input.lng }, input.make));
+    .map((p) => normalizePlace(p, { lat: input.lat, lng: input.lng }, input.make, verified));
 
-  return results.sort((a, b) => a.distanceKm - b.distanceKm);
+  // Verified workshops bubble to the top, then sort by distance
+  return results.sort((a, b) => {
+    if (a.isVerifiedRepAIro && !b.isVerifiedRepAIro) return -1;
+    if (!a.isVerifiedRepAIro && b.isVerifiedRepAIro) return 1;
+    return a.distanceKm - b.distanceKm;
+  });
 }

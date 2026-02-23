@@ -10,6 +10,13 @@ export interface VehicleContext {
   fuelType?: 'petrol' | 'diesel' | 'hybrid' | 'electric' | 'lpg' | 'cng';
 }
 
+export type CanDriveLevel = 'yes' | 'with_caution' | 'no';
+
+export interface ProbableCause {
+  cause: string;
+  confidence: number;
+}
+
 export interface PrediagnosisResult {
   probableIssue: string;
   confidence: number;
@@ -19,6 +26,14 @@ export interface PrediagnosisResult {
   safetyAdvice: string;
   nextChecks: string[];
   disclaimer: string;
+  // Extended fields (Sprint 1 — structured professional report)
+  canDrive?: CanDriveLevel;
+  topCauses?: ProbableCause[];
+  userChecks?: string[];
+  ignoreRisks?: string;
+  estimatedTimeMin?: number;
+  estimatedTimeMax?: number;
+  mechanicQuestions?: string[];
 }
 
 export interface ChatMessage {
@@ -40,6 +55,7 @@ export interface MechanicCard {
   distanceKm: number;
   address: string;
   isOfficialDealer: boolean;
+  isVerifiedRepAIro?: boolean;
   phone?: string;
   website?: string;
   openingHours?: string;

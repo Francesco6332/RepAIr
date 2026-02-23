@@ -13,10 +13,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Session } from '@supabase/supabase-js';
 import { GlassCard } from '../components/GlassCard';
+import { PaywallModal } from '../components/PaywallModal';
 import { useThemeStore } from '../store/useThemeStore';
 import { themes } from '../theme/tokens';
 import { DiagnosisRecord, listDiagnoses } from '../services/diagnoses';
 import { shareDiagnosisPdf } from '../utils/buildDiagnosisPdf';
+import { getCurrentPlan } from '../services/usage';
 
 type Props = { session: Session };
 
@@ -73,9 +75,15 @@ export function HistoryScreen({ session }: Props) {
   };
 
   const [sharingId, setSharingId] = useState<string | null>(null);
+  const [paywallVisible, setPaywallVisible] = useState(false);
 
   const onShareItem = async (item: DiagnosisRecord) => {
     if (!item.summary || item.confidence == null) return;
+    const plan = await getCurrentPlan();
+    if (plan === 'free') {
+      setPaywallVisible(true);
+      return;
+    }
     setSharingId(item.id);
     try {
       await shareDiagnosisPdf({
@@ -175,6 +183,13 @@ export function HistoryScreen({ session }: Props) {
     >
       <Text style={[styles.pageTitle, { color: tokens.text }]}>History</Text>
       <Text style={[styles.pageSubtitle, { color: tokens.textMuted }]}>Past diagnoses</Text>
+
+      <PaywallModal
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+        tokens={tokens}
+        reason="pdf"
+      />
 
       {loading ? (
         <View style={styles.center}>

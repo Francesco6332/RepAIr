@@ -8,6 +8,7 @@ const openaiClient = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey })
 
 function sanitizeResult(input: Partial<PrediagnosisResult>): PrediagnosisResult {
   const urgency = input.urgency;
+  const canDrive = input.canDrive;
 
   return {
     probableIssue: input.probableIssue?.trim() || 'Unable to determine issue',
@@ -24,19 +25,63 @@ function sanitizeResult(input: Partial<PrediagnosisResult>): PrediagnosisResult 
       typeof input.estimatedCostMax === 'number' && Number.isFinite(input.estimatedCostMax)
         ? Math.max(0, Math.round(input.estimatedCostMax))
         : 0,
-    safetyAdvice: input.safetyAdvice?.trim() || 'Please consult a certified mechanic.',
+    safetyAdvice: input.safetyAdvice?.trim() || 'Consulta un meccanico certificato.',
     nextChecks: Array.isArray(input.nextChecks)
       ? input.nextChecks.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 5)
       : [],
     disclaimer:
       input.disclaimer?.trim() ||
-      'Prediagnosis only. A certified mechanic must verify the issue.'
+      'Pre-diagnosi AI. Deve essere verificata da un meccanico certificato.',
+    // Extended fields
+    canDrive: canDrive === 'yes' || canDrive === 'with_caution' || canDrive === 'no' ? canDrive : undefined,
+    topCauses: Array.isArray(input.topCauses)
+      ? input.topCauses
+          .filter((c): c is { cause: string; confidence: number } =>
+            typeof c === 'object' && typeof c.cause === 'string' && typeof c.confidence === 'number'
+          )
+          .slice(0, 3)
+      : undefined,
+    userChecks: Array.isArray(input.userChecks)
+      ? input.userChecks.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 5)
+      : undefined,
+    ignoreRisks: input.ignoreRisks?.trim() || undefined,
+    estimatedTimeMin:
+      typeof input.estimatedTimeMin === 'number' && Number.isFinite(input.estimatedTimeMin)
+        ? Math.max(0, input.estimatedTimeMin)
+        : undefined,
+    estimatedTimeMax:
+      typeof input.estimatedTimeMax === 'number' && Number.isFinite(input.estimatedTimeMax)
+        ? Math.max(0, input.estimatedTimeMax)
+        : undefined,
+    mechanicQuestions: Array.isArray(input.mechanicQuestions)
+      ? input.mechanicQuestions.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 5)
+      : undefined,
   };
 }
 
 function buildPrompt(input: { prompt: string; vehicle: VehicleContext; region?: string }) {
   return `Vehicle: ${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.year}, mileage ${input.vehicle.mileage ?? 'unknown'}\nFuel: ${input.vehicle.fuelType ?? 'unknown'}\nRegion: ${input.region ?? 'unknown'}\nSymptom: ${input.prompt}`;
 }
+
+const STRUCTURED_REPORT_SYSTEM =
+  'You are RepAIro, a professional automotive pre-diagnosis assistant for Italian users. ' +
+  'Return valid JSON only with these exact keys: ' +
+  'probableIssue (string, main diagnosis in Italian), ' +
+  'confidence (float 0..1, overall confidence), ' +
+  'urgency ("low"|"medium"|"high"), ' +
+  'canDrive ("yes"|"with_caution"|"no", whether the user can safely drive now), ' +
+  'topCauses (array of up to 3 objects {cause: string, confidence: float}, most probable causes in Italian), ' +
+  'estimatedCostMin (integer EUR), ' +
+  'estimatedCostMax (integer EUR), ' +
+  'estimatedTimeMin (integer, repair hours), ' +
+  'estimatedTimeMax (integer, repair hours), ' +
+  'safetyAdvice (string, immediate safety advice in Italian), ' +
+  'userChecks (string array of 3-5 things user can verify themselves in 5 minutes, in Italian), ' +
+  'nextChecks (string array of up to 5 checks a mechanic must perform, in Italian), ' +
+  'ignoreRisks (string, what happens if this problem is ignored, in Italian), ' +
+  'mechanicQuestions (string array of 3-5 questions to ask the mechanic, in Italian), ' +
+  'disclaimer (string, legal disclaimer in Italian). ' +
+  'Never claim certainty. All text must be in Italian.';
 
 async function openAiPrediagnosis(input: {
   prompt: string;
@@ -45,8 +90,7 @@ async function openAiPrediagnosis(input: {
 }): Promise<PrediagnosisResult | null> {
   if (!openaiClient) return null;
 
-  const system =
-    'You are RepAIro, an automotive prediagnosis assistant. Return valid JSON only with keys: probableIssue, confidence, urgency, estimatedCostMin, estimatedCostMax, safetyAdvice, nextChecks, disclaimer. urgency must be low|medium|high. confidence is 0..1. Include a legal disclaimer that this is not a certified inspection.';
+  const system = STRUCTURED_REPORT_SYSTEM;
 
   const completion = await openaiClient.chat.completions.create({
     model: env.openaiModel,
@@ -76,12 +120,11 @@ async function anthropicPrediagnosis(input: {
 }): Promise<PrediagnosisResult | null> {
   if (!anthropicClient) return null;
 
-  const system =
-    'You are RepAIro, an automotive prediagnosis assistant. Reply with a single valid JSON object — no markdown, no explanation — with exactly these keys: probableIssue (string), confidence (0..1 float), urgency ("low"|"medium"|"high"), estimatedCostMin (integer), estimatedCostMax (integer), safetyAdvice (string), nextChecks (string[]), disclaimer (string). Never claim certainty.';
+  const system = STRUCTURED_REPORT_SYSTEM + ' Reply with a single valid JSON object — no markdown, no code blocks, no explanation.';
 
   const res = await anthropicClient.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 600,
+    max_tokens: 900,
     system,
     messages: [{ role: 'user', content: buildPrompt(input) }]
   });
@@ -113,13 +156,12 @@ export async function analyzeImageWithVision(input: {
     try {
       const completion = await openaiClient.chat.completions.create({
         model: 'gpt-4o',
-        max_tokens: 600,
+        max_tokens: 900,
         response_format: { type: 'json_object' },
         messages: [
           {
             role: 'system',
-            content:
-              'You are RepAIro, an automotive prediagnosis assistant. Analyze the car image and return valid JSON with keys: probableIssue, confidence, urgency, estimatedCostMin, estimatedCostMax, safetyAdvice, nextChecks, disclaimer. urgency must be low|medium|high. confidence is 0..1.'
+            content: STRUCTURED_REPORT_SYSTEM
           },
           {
             role: 'user',
@@ -150,9 +192,8 @@ export async function analyzeImageWithVision(input: {
     try {
       const res = await anthropicClient.messages.create({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 600,
-        system:
-          'You are RepAIro, an automotive prediagnosis assistant. Reply with a single valid JSON object — no markdown, no explanation — with exactly these keys: probableIssue (string), confidence (0..1 float), urgency ("low"|"medium"|"high"), estimatedCostMin (integer), estimatedCostMax (integer), safetyAdvice (string), nextChecks (string[]), disclaimer (string). Never claim certainty.',
+        max_tokens: 900,
+        system: STRUCTURED_REPORT_SYSTEM + ' Reply with a single valid JSON object — no markdown, no code blocks, no explanation.',
         messages: [
           {
             role: 'user',
