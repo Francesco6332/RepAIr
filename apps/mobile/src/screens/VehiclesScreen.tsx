@@ -18,6 +18,9 @@ import { useThemeStore } from '../store/useThemeStore';
 import { themes } from '../theme/tokens';
 import { addVehicle, listVehicles } from '../services/vehicles';
 import { useVehicleStore } from '../store/useVehicleStore';
+import { listDiagnosesByVehicle } from '../services/diagnoses';
+import { computeHealthScore, HealthScore } from '../utils/healthScore';
+import { HealthScoreWidget } from '../components/HealthScoreWidget';
 
 type Props = { session: Session };
 
@@ -43,10 +46,19 @@ export function VehiclesScreen({ session }: Props) {
   const [mileage, setMileage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [healthScores, setHealthScores] = useState<Record<string, HealthScore>>({});
 
   const refresh = async () => {
     const data = await listVehicles(session.user.id);
     setVehicles(data);
+    // Fetch health scores for all vehicles in parallel
+    const entries = await Promise.all(
+      data.map(async (v) => {
+        const records = await listDiagnosesByVehicle(v.id);
+        return [v.id, computeHealthScore(records)] as [string, HealthScore];
+      })
+    );
+    setHealthScores(Object.fromEntries(entries));
   };
 
   useEffect(() => {
@@ -227,6 +239,13 @@ export function VehiclesScreen({ session }: Props) {
                           <Ionicons name={fuelIcon} size={14} color={tokens.textMuted} />
                         </View>
                       </View>
+                      {healthScores[item.id] && (
+                        <HealthScoreWidget
+                          health={healthScores[item.id]}
+                          textColor={tokens.textMuted}
+                          trackColor={tokens.glassBorder}
+                        />
+                      )}
                     </GlassCard>
                   </Pressable>
                 );

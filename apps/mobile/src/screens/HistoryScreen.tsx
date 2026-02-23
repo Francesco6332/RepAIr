@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -15,6 +16,7 @@ import { GlassCard } from '../components/GlassCard';
 import { useThemeStore } from '../store/useThemeStore';
 import { themes } from '../theme/tokens';
 import { DiagnosisRecord, listDiagnoses } from '../services/diagnoses';
+import { shareDiagnosisPdf } from '../utils/buildDiagnosisPdf';
 
 type Props = { session: Session };
 
@@ -68,6 +70,29 @@ export function HistoryScreen({ session }: Props) {
   const onRefresh = () => {
     setRefreshing(true);
     load();
+  };
+
+  const [sharingId, setSharingId] = useState<string | null>(null);
+
+  const onShareItem = async (item: DiagnosisRecord) => {
+    if (!item.summary || item.confidence == null) return;
+    setSharingId(item.id);
+    try {
+      await shareDiagnosisPdf({
+        vehicle: item.vehicles
+          ? `${item.vehicles.make} ${item.vehicles.model} · ${item.vehicles.year}`
+          : 'Unknown vehicle',
+        date: new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        probableIssue: item.summary,
+        confidence: item.confidence,
+        urgency: item.urgency ?? 'low',
+        costMin: item.cost_min ?? 0,
+        costMax: item.cost_max ?? 0,
+        safetyAdvice: '',
+      });
+    } finally {
+      setSharingId(null);
+    }
   };
 
   const renderItem = ({ item }: { item: DiagnosisRecord }) => {
@@ -124,6 +149,20 @@ export function HistoryScreen({ session }: Props) {
               {item.status}
             </Text>
           </View>
+          <Pressable
+            onPress={() => onShareItem(item)}
+            disabled={sharingId === item.id}
+            style={[styles.shareBtn, { borderColor: tokens.primary + '50', backgroundColor: tokens.primaryGlow }]}
+          >
+            <Ionicons
+              name={sharingId === item.id ? 'hourglass-outline' : 'share-outline'}
+              size={13}
+              color={tokens.primary}
+            />
+            <Text style={[styles.shareBtnText, { color: tokens.primary }]}>
+              {sharingId === item.id ? 'Generating…' : 'PDF'}
+            </Text>
+          </Pressable>
         </View>
       </GlassCard>
     );
@@ -189,6 +228,16 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 0.5 },
   badgeText: { fontSize: 11, fontWeight: '700' },
   spacer: { flex: 1 },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 0.5,
+  },
+  shareBtnText: { fontSize: 11, fontWeight: '700' },
   empty: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700' },
   emptySubtitle: { fontSize: 14, textAlign: 'center', maxWidth: 240, lineHeight: 20 },

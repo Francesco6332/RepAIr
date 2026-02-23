@@ -46,3 +46,15 @@ export async function listDiagnoses(userId: string): Promise<DiagnosisRecord[]> 
   if (error) throw error;
   return (data ?? []) as DiagnosisRecord[];
 }
+
+export async function listDiagnosesByVehicle(vehicleId: string): Promise<DiagnosisRecord[]> {
+  const { data, error } = await supabase
+    .from('diagnoses')
+    .select('*, vehicles(make, model, year)')
+    .eq('vehicle_id', vehicleId)
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (error) throw error;
+  return (data ?? []) as DiagnosisRecord[];
+}

@@ -1,4 +1,4 @@
-import { PrediagnosisResult, VehicleContext } from '@repairo/shared';
+import { ChatMessage, FollowUpResponse, PrediagnosisResult, VehicleContext } from '@repairo/shared';
 import { supabase } from './supabase';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8787';
@@ -58,6 +58,21 @@ export async function analyzeAudio(payload: {
 
   if (!response.ok) throw new Error('Audio analysis failed.');
   return response.json() as Promise<PrediagnosisResult>;
+}
+
+export async function sendFollowUp(payload: {
+  messages: ChatMessage[];
+  vehicle: VehicleContext;
+  region?: string;
+}): Promise<FollowUpResponse> {
+  const response = await fetch(`${BASE_URL}/api/diagnose/followup`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) throw new Error('Follow-up failed. Please try again.');
+  return response.json();
 }
 
 export async function lookupDtc(payload: {

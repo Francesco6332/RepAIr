@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,11 +18,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassCard } from '../components/GlassCard';
 import { GlassInput } from '../components/GlassInput';
 import { PrimaryButton } from '../components/PrimaryButton';
-import { analyzeAudio, analyzePhoto, createPrediagnosis, lookupDtc } from '../services/api';
+import { analyzeAudio, analyzePhoto, createPrediagnosis, lookupDtc, sendFollowUp } from '../services/api';
 import { saveDiagnosis } from '../services/diagnoses';
+import { shareDiagnosisPdf } from '../utils/buildDiagnosisPdf';
 import { useThemeStore } from '../store/useThemeStore';
 import { themes } from '../theme/tokens';
-import { PrediagnosisResult } from '@repairo/shared';
+import { ChatMessage, PrediagnosisResult } from '@repairo/shared';
 import { useVehicleStore } from '../store/useVehicleStore';
 
 type Props = { session: Session };
@@ -48,6 +50,11 @@ export function DiagnoseScreen({ session }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [dtcVisible, setDtcVisible] = useState(false);
   const [dtcCode, setDtcCode] = useState('');
+  const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [followUpText, setFollowUpText] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? vehicles[0];
 
@@ -61,7 +68,11 @@ export function DiagnoseScreen({ session }: Props) {
       }
     : null;
 
-  const withGuard = async (fn: () => Promise<PrediagnosisResult>, type: 'text' | 'photo' | 'audio') => {
+  const withGuard = async (
+    fn: () => Promise<PrediagnosisResult>,
+    type: 'text' | 'photo' | 'audio',
+    userContent: string
+  ) => {
     if (!vehicleContext) {
       setError('Add and select a vehicle first in the Vehicles tab.');
       return;
@@ -69,9 +80,14 @@ export function DiagnoseScreen({ session }: Props) {
     setLoading(true);
     setError(null);
     setResult(null);
+    setChatMessages([]);
     try {
       const data = await fn();
       setResult(data);
+      setConversationHistory([
+        { role: 'user', content: userContent },
+        { role: 'assistant', content: `${data.probableIssue}. Confidence: ${Math.round(data.confidence * 100)}%. ${data.safetyAdvice}` },
+      ]);
       if (selectedVehicle) {
         saveDiagnosis({
           userId: session.user.id,
@@ -91,7 +107,8 @@ export function DiagnoseScreen({ session }: Props) {
     Keyboard.dismiss();
     await withGuard(async () =>
       createPrediagnosis({ mode: 'text', prompt, region: 'IT', vehicle: vehicleContext! }),
-      'text'
+      'text',
+      prompt || 'Car issue description'
     );
   };
 
@@ -111,7 +128,8 @@ export function DiagnoseScreen({ session }: Props) {
 
     await withGuard(async () =>
       analyzePhoto({ imageBase64: asset.base64!, mimeType: asset.mimeType ?? 'image/jpeg', region: 'IT', vehicle: vehicleContext! }),
-      'photo'
+      'photo',
+      'Photo analysis of a visible car issue'
     );
   };
 
@@ -137,7 +155,8 @@ export function DiagnoseScreen({ session }: Props) {
         region: 'IT',
         vehicle: vehicleContext!,
       }),
-      'audio'
+      'audio',
+      `Audio recording of mechanical noise (${seconds}s)`
     );
   };
 
@@ -146,8 +165,56 @@ export function DiagnoseScreen({ session }: Props) {
     if (!dtcCode.trim()) { setError('Enter an OBD-II code first (e.g. P0420).'); return; }
     await withGuard(async () =>
       lookupDtc({ code: dtcCode.trim(), region: 'IT', vehicle: vehicleContext! }),
-      'text'
+      'text',
+      `OBD-II code: ${dtcCode.trim()}`
     );
+  };
+
+  const onSendFollowUp = async () => {
+    const text = followUpText.trim();
+    if (!text || !vehicleContext) return;
+    const userMsg: ChatMessage = { role: 'user', content: text };
+    const newHistory = [...conversationHistory, userMsg];
+    setConversationHistory(newHistory);
+    setChatMessages((prev) => [...prev, userMsg]);
+    setFollowUpText('');
+    setChatLoading(true);
+    try {
+      const response = await sendFollowUp({ messages: newHistory, vehicle: vehicleContext, region: 'IT' });
+      const aiMsg: ChatMessage = { role: 'assistant', content: response.message };
+      setConversationHistory((prev) => [...prev, aiMsg]);
+      setChatMessages((prev) => [...prev, aiMsg]);
+      setResult(response.diagnosis);
+    } catch (e) {
+      setChatMessages((prev) => prev.slice(0, -1));
+      setError((e as Error).message);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const onSharePdf = async () => {
+    if (!result) return;
+    setSharing(true);
+    try {
+      await shareDiagnosisPdf({
+        vehicle: selectedVehicle
+          ? `${selectedVehicle.make} ${selectedVehicle.model} · ${selectedVehicle.year}`
+          : 'Unknown vehicle',
+        date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        probableIssue: result.probableIssue,
+        confidence: result.confidence,
+        urgency: result.urgency,
+        costMin: result.estimatedCostMin,
+        costMax: result.estimatedCostMax,
+        safetyAdvice: result.safetyAdvice,
+        nextChecks: result.nextChecks,
+      });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSharing(false);
+    }
   };
 
   const urgencyColor = result
@@ -323,6 +390,71 @@ export function DiagnoseScreen({ session }: Props) {
                   {result.safetyAdvice}
                 </Text>
               </View>
+
+              <Pressable
+                onPress={onSharePdf}
+                disabled={sharing}
+                style={[styles.shareBtn, { borderColor: tokens.primary + '50', backgroundColor: tokens.primaryGlow }]}
+              >
+                <Ionicons name={sharing ? 'hourglass-outline' : 'share-outline'} size={15} color={tokens.primary} />
+                <Text style={[styles.shareBtnText, { color: tokens.primary }]}>
+                  {sharing ? 'Generating…' : 'Export PDF'}
+                </Text>
+              </Pressable>
+            </GlassCard>
+          ) : null}
+
+          {result ? (
+            <GlassCard backgroundColor={tokens.glass} style={styles.card}>
+              <View style={styles.chatHeader}>
+                <Ionicons name="chatbubbles-outline" size={15} color={tokens.primary} />
+                <Text style={[styles.chatTitle, { color: tokens.text }]}>Continue Diagnosis</Text>
+              </View>
+
+              {chatMessages.map((msg, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.bubble,
+                    msg.role === 'user'
+                      ? { alignSelf: 'flex-end', backgroundColor: tokens.primary + '22', borderColor: tokens.primary + '44' }
+                      : { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.06)', borderColor: tokens.glassBorder },
+                  ]}
+                >
+                  <Text style={[styles.bubbleText, { color: tokens.text }]}>{msg.content}</Text>
+                </View>
+              ))}
+
+              {chatLoading && (
+                <View style={styles.chatLoadingRow}>
+                  <ActivityIndicator size="small" color={tokens.primary} />
+                  <Text style={[styles.loadingText, { color: tokens.textMuted }]}>Thinking…</Text>
+                </View>
+              )}
+
+              <View style={[styles.chatInputRow, { borderTopColor: tokens.glassBorder }]}>
+                <TextInput
+                  style={[styles.chatInput, { color: tokens.text }]}
+                  value={followUpText}
+                  onChangeText={setFollowUpText}
+                  placeholder="Ask a follow-up question…"
+                  placeholderTextColor={tokens.textMuted}
+                  onSubmitEditing={onSendFollowUp}
+                  returnKeyType="send"
+                  editable={!chatLoading}
+                />
+                <Pressable
+                  onPress={onSendFollowUp}
+                  disabled={chatLoading || !followUpText.trim()}
+                  style={[styles.sendBtn, { backgroundColor: tokens.primaryGlow }]}
+                >
+                  <Ionicons
+                    name="send"
+                    size={16}
+                    color={chatLoading || !followUpText.trim() ? tokens.textMuted : tokens.primary}
+                  />
+                </Pressable>
+              </View>
             </GlassCard>
           ) : null}
         </ScrollView>
@@ -379,4 +511,50 @@ const styles = StyleSheet.create({
   adviceBox: { flexDirection: 'row', gap: 8, padding: 12, borderRadius: 12, alignItems: 'flex-start' },
   adviceText: { fontSize: 13, flex: 1, lineHeight: 18 },
   dtcPanel: { marginTop: 12, gap: 10 },
+  chatHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 },
+  chatTitle: { fontSize: 14, fontWeight: '700' },
+  bubble: {
+    maxWidth: '82%',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: 0.5,
+    marginBottom: 8,
+  },
+  bubbleText: { fontSize: 13, lineHeight: 19 },
+  chatLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  chatInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+    paddingTop: 12,
+    borderTopWidth: 0.5,
+  },
+  chatInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  sendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    marginTop: 14,
+    paddingVertical: 11,
+    borderRadius: 14,
+    borderWidth: 0.5,
+  },
+  shareBtnText: { fontSize: 14, fontWeight: '700' },
 });

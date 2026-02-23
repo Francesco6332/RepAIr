@@ -21,6 +21,16 @@ export interface PrediagnosisResult {
   disclaimer: string;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface FollowUpResponse {
+  message: string;
+  diagnosis: PrediagnosisResult;
+}
+
 export interface MechanicCard {
   id: string;
   name: string;
