@@ -8,6 +8,7 @@ import { MechanicsScreen } from '../screens/MechanicsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { VehiclesScreen } from '../screens/VehiclesScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { HistoryScreen } from '../screens/HistoryScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { PricingScreen } from '../screens/PricingScreen';
 import { GlassTabBar } from './GlassTabBar';
@@ -16,6 +17,7 @@ type TabParamList = {
   Diagnose: undefined;
   Vehicles: undefined;
   Mechanics: undefined;
+  History: undefined;
   Profile: undefined;
 };
 
@@ -37,6 +39,7 @@ function AppTabs({ session }: { session: Session }) {
       <Tab.Screen name="Diagnose">{() => <DiagnoseScreen session={session} />}</Tab.Screen>
       <Tab.Screen name="Vehicles">{() => <VehiclesScreen session={session} />}</Tab.Screen>
       <Tab.Screen name="Mechanics" component={MechanicsScreen} />
+      <Tab.Screen name="History">{() => <HistoryScreen session={session} />}</Tab.Screen>
       <Tab.Screen name="Profile">{() => <ProfileScreen session={session} />}</Tab.Screen>
     </Tab.Navigator>
   );

@@ -27,6 +27,7 @@ export async function supabaseAuth(req: Request, res: Response, next: NextFuncti
     }
 
     req.userId = user.id;
+    req.userToken = bearer;
     return next();
   } catch {
     return res.status(401).json({ error: 'Authentication failed' });

@@ -6,70 +6,28 @@ import { env } from '../config/env';
 const anthropicClient = env.anthropicApiKey ? new Anthropic({ apiKey: env.anthropicApiKey }) : null;
 const openaiClient = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : null;
 
-function ruleBasedFallback(prompt: string): PrediagnosisResult {
-  const normalized = prompt.toLowerCase();
-
-  if (normalized.includes('brake') || normalized.includes('freno')) {
-    return {
-      probableIssue: 'Worn brake pads or rotor scoring',
-      confidence: 0.82,
-      urgency: 'medium',
-      estimatedCostMin: 140,
-      estimatedCostMax: 420,
-      safetyAdvice: 'Avoid hard braking and schedule an inspection within a week.',
-      nextChecks: ['Inspect pad thickness', 'Check rotor surface', 'Read ABS-related DTCs'],
-      disclaimer: 'Prediagnosis only. A certified mechanic must verify the issue.'
-    };
-  }
-
-  if (normalized.includes('engine light') || normalized.includes('check engine')) {
-    return {
-      probableIssue: 'Emissions or ignition system fault (DTC scan required)',
-      confidence: 0.68,
-      urgency: 'medium',
-      estimatedCostMin: 90,
-      estimatedCostMax: 650,
-      safetyAdvice: 'Drive gently and scan OBD-II codes as soon as possible.',
-      nextChecks: ['Scan DTC codes', 'Inspect spark plugs/coils', 'Inspect fuel trim readings'],
-      disclaimer: 'Prediagnosis only. A certified mechanic must verify the issue.'
-    };
-  }
-
-  return {
-    probableIssue: 'General drivetrain or suspension anomaly',
-    confidence: 0.53,
-    urgency: 'low',
-    estimatedCostMin: 120,
-    estimatedCostMax: 900,
-    safetyAdvice: 'Drive conservatively and book a local inspection.',
-    nextChecks: ['Visual leak check', 'Suspension joints check', 'Full OBD scan'],
-    disclaimer: 'Prediagnosis only. A certified mechanic must verify the issue.'
-  };
-}
-
-function sanitizeResult(input: Partial<PrediagnosisResult>, prompt: string): PrediagnosisResult {
-  const fallback = ruleBasedFallback(prompt);
+function sanitizeResult(input: Partial<PrediagnosisResult>): PrediagnosisResult {
   const urgency = input.urgency;
 
   return {
-    probableIssue: input.probableIssue?.trim() || fallback.probableIssue,
+    probableIssue: input.probableIssue?.trim() || 'Unable to determine issue',
     confidence:
       typeof input.confidence === 'number' && Number.isFinite(input.confidence)
         ? Math.min(0.99, Math.max(0.05, input.confidence))
-        : fallback.confidence,
-    urgency: urgency === 'low' || urgency === 'medium' || urgency === 'high' ? urgency : fallback.urgency,
+        : 0.5,
+    urgency: urgency === 'low' || urgency === 'medium' || urgency === 'high' ? urgency : 'medium',
     estimatedCostMin:
       typeof input.estimatedCostMin === 'number' && Number.isFinite(input.estimatedCostMin)
         ? Math.max(0, Math.round(input.estimatedCostMin))
-        : fallback.estimatedCostMin,
+        : 0,
     estimatedCostMax:
       typeof input.estimatedCostMax === 'number' && Number.isFinite(input.estimatedCostMax)
         ? Math.max(0, Math.round(input.estimatedCostMax))
-        : fallback.estimatedCostMax,
-    safetyAdvice: input.safetyAdvice?.trim() || fallback.safetyAdvice,
+        : 0,
+    safetyAdvice: input.safetyAdvice?.trim() || 'Please consult a certified mechanic.',
     nextChecks: Array.isArray(input.nextChecks)
       ? input.nextChecks.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 5)
-      : fallback.nextChecks,
+      : [],
     disclaimer:
       input.disclaimer?.trim() ||
       'Prediagnosis only. A certified mechanic must verify the issue.'
@@ -105,7 +63,7 @@ async function openAiPrediagnosis(input: {
 
   try {
     const parsed = JSON.parse(raw) as Partial<PrediagnosisResult>;
-    return sanitizeResult(parsed, input.prompt);
+    return sanitizeResult(parsed);
   } catch {
     return null;
   }
@@ -136,7 +94,7 @@ async function anthropicPrediagnosis(input: {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
     const parsed = JSON.parse(jsonMatch[0]) as Partial<PrediagnosisResult>;
-    return sanitizeResult(parsed, input.prompt);
+    return sanitizeResult(parsed);
   } catch {
     return null;
   }
@@ -181,7 +139,7 @@ export async function analyzeImageWithVision(input: {
       const raw = completion.choices[0]?.message?.content;
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<PrediagnosisResult>;
-        return sanitizeResult(parsed, userText);
+        return sanitizeResult(parsed);
       }
     } catch {
       // fall through to Anthropic
@@ -217,7 +175,7 @@ export async function analyzeImageWithVision(input: {
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]) as Partial<PrediagnosisResult>;
-          return sanitizeResult(parsed, userText);
+          return sanitizeResult(parsed);
         }
       }
     } catch {
@@ -225,7 +183,7 @@ export async function analyzeImageWithVision(input: {
     }
   }
 
-  return ruleBasedFallback('car image analysis');
+  throw new Error('No AI provider available to analyze the image.');
 }
 
 export async function generatePrediagnosis(input: {
@@ -247,5 +205,5 @@ export async function generatePrediagnosis(input: {
     // fall through to fallback
   }
 
-  return ruleBasedFallback(input.prompt);
+  throw new Error('No AI provider available to generate a diagnosis.');
 }

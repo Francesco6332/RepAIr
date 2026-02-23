@@ -17,7 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassCard } from '../components/GlassCard';
 import { GlassInput } from '../components/GlassInput';
 import { PrimaryButton } from '../components/PrimaryButton';
-import { analyzeAudio, analyzePhoto, createPrediagnosis } from '../services/api';
+import { analyzeAudio, analyzePhoto, createPrediagnosis, lookupDtc } from '../services/api';
+import { saveDiagnosis } from '../services/diagnoses';
 import { useThemeStore } from '../store/useThemeStore';
 import { themes } from '../theme/tokens';
 import { PrediagnosisResult } from '@repairo/shared';
@@ -32,7 +33,7 @@ const URGENCY_COLOR: Record<string, string> = {
   critical: '#F87171',
 };
 
-export function DiagnoseScreen({ session: _session }: Props) {
+export function DiagnoseScreen({ session }: Props) {
   const Gradient = LinearGradient as unknown as React.ComponentType<any>;
   const insets = useSafeAreaInsets();
   const preset = useThemeStore((s) => s.preset);
@@ -45,6 +46,8 @@ export function DiagnoseScreen({ session: _session }: Props) {
   const [audioStartedAt, setAudioStartedAt] = useState<number | null>(null);
   const [result, setResult] = useState<PrediagnosisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dtcVisible, setDtcVisible] = useState(false);
+  const [dtcCode, setDtcCode] = useState('');
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? vehicles[0];
 
@@ -58,7 +61,7 @@ export function DiagnoseScreen({ session: _session }: Props) {
       }
     : null;
 
-  const withGuard = async (fn: () => Promise<PrediagnosisResult>) => {
+  const withGuard = async (fn: () => Promise<PrediagnosisResult>, type: 'text' | 'photo' | 'audio') => {
     if (!vehicleContext) {
       setError('Add and select a vehicle first in the Vehicles tab.');
       return;
@@ -69,6 +72,14 @@ export function DiagnoseScreen({ session: _session }: Props) {
     try {
       const data = await fn();
       setResult(data);
+      if (selectedVehicle) {
+        saveDiagnosis({
+          userId: session.user.id,
+          vehicleId: selectedVehicle.id,
+          type,
+          result: data,
+        }).catch(() => {});
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -79,7 +90,8 @@ export function DiagnoseScreen({ session: _session }: Props) {
   const onDiagnoseText = async () => {
     Keyboard.dismiss();
     await withGuard(async () =>
-      createPrediagnosis({ mode: 'text', prompt, region: 'IT', vehicle: vehicleContext! })
+      createPrediagnosis({ mode: 'text', prompt, region: 'IT', vehicle: vehicleContext! }),
+      'text'
     );
   };
 
@@ -98,7 +110,8 @@ export function DiagnoseScreen({ session: _session }: Props) {
     if (!asset.base64) { setError('Failed to read image data.'); return; }
 
     await withGuard(async () =>
-      analyzePhoto({ imageBase64: asset.base64!, mimeType: asset.mimeType ?? 'image/jpeg', region: 'IT', vehicle: vehicleContext! })
+      analyzePhoto({ imageBase64: asset.base64!, mimeType: asset.mimeType ?? 'image/jpeg', region: 'IT', vehicle: vehicleContext! }),
+      'photo'
     );
   };
 
@@ -123,7 +136,17 @@ export function DiagnoseScreen({ session: _session }: Props) {
         audioTranscript: `Driver recorded abnormal mechanical noise for about ${seconds} seconds.`,
         region: 'IT',
         vehicle: vehicleContext!,
-      })
+      }),
+      'audio'
+    );
+  };
+
+  const onLookupDtc = async () => {
+    Keyboard.dismiss();
+    if (!dtcCode.trim()) { setError('Enter an OBD-II code first (e.g. P0420).'); return; }
+    await withGuard(async () =>
+      lookupDtc({ code: dtcCode.trim(), region: 'IT', vehicle: vehicleContext! }),
+      'text'
     );
   };
 
@@ -132,17 +155,16 @@ export function DiagnoseScreen({ session: _session }: Props) {
     : tokens.warning;
 
   return (
-    <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
-      <Gradient
-        colors={[tokens.bg, tokens.bgAlt, tokens.bgDeep]}
-        style={[styles.page, { paddingTop: insets.top + 16 }]}
+    <Gradient
+      colors={[tokens.bg, tokens.bgAlt, tokens.bgDeep]}
+      style={[styles.page, { paddingTop: insets.top + 16 }]}
+    >
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
-        <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100 }]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-        >
           <Text style={[styles.pageTitle, { color: tokens.text }]}>Diagnose</Text>
           <Text style={[styles.pageSubtitle, { color: tokens.textMuted }]}>
             AI-powered pre-diagnosis
@@ -211,7 +233,35 @@ export function DiagnoseScreen({ session: _session }: Props) {
                   {recording ? 'Stop' : 'Audio'}
                 </Text>
               </Pressable>
+              <Pressable
+                onPress={() => setDtcVisible((v) => !v)}
+                style={[
+                  styles.mediaBtn,
+                  {
+                    borderColor: dtcVisible ? tokens.primary + '80' : tokens.glassBorder,
+                    backgroundColor: dtcVisible ? tokens.primaryGlow : 'transparent',
+                  },
+                ]}
+              >
+                <Ionicons name="barcode-outline" size={18} color={dtcVisible ? tokens.primary : tokens.textMuted} />
+                <Text style={[styles.mediaBtnText, { color: dtcVisible ? tokens.primary : tokens.textMuted }]}>OBD</Text>
+              </Pressable>
             </View>
+
+            {dtcVisible && (
+              <View style={styles.dtcPanel}>
+                <GlassInput
+                  tokens={tokens}
+                  label="OBD-II Code"
+                  value={dtcCode}
+                  onChangeText={(t) => setDtcCode(t.toUpperCase())}
+                  placeholder="P0420"
+                  autoCapitalize="characters"
+                  maxLength={7}
+                />
+                <PrimaryButton label="Analyze Code" onPress={onLookupDtc} color={tokens.primary} disabled={loading} />
+              </View>
+            )}
           </GlassCard>
 
           {loading && (
@@ -277,7 +327,6 @@ export function DiagnoseScreen({ session: _session }: Props) {
           ) : null}
         </ScrollView>
       </Gradient>
-    </Pressable>
   );
 }
 
@@ -329,4 +378,5 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 12, fontWeight: '700' },
   adviceBox: { flexDirection: 'row', gap: 8, padding: 12, borderRadius: 12, alignItems: 'flex-start' },
   adviceText: { fontSize: 13, flex: 1, lineHeight: 18 },
+  dtcPanel: { marginTop: 12, gap: 10 },
 });

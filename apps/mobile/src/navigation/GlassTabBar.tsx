@@ -13,6 +13,7 @@ const TAB_CONFIG: Record<string, { active: IoniconName; inactive: IoniconName; l
   Diagnose: { active: 'car-sport', inactive: 'car-sport-outline', label: 'Diagnose' },
   Vehicles: { active: 'car', inactive: 'car-outline', label: 'Vehicles' },
   Mechanics: { active: 'map', inactive: 'map-outline', label: 'Nearby' },
+  History: { active: 'time', inactive: 'time-outline', label: 'History' },
   Profile: { active: 'person-circle', inactive: 'person-circle-outline', label: 'Profile' },
 };
 

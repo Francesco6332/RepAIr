@@ -60,4 +60,19 @@ export async function analyzeAudio(payload: {
   return response.json() as Promise<PrediagnosisResult>;
 }
 
+export async function lookupDtc(payload: {
+  code: string;
+  vehicle: VehicleContext;
+  region?: string;
+}): Promise<PrediagnosisResult> {
+  const response = await fetch(`${BASE_URL}/api/dtc/lookup`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) throw new Error('DTC lookup failed. Check the code format (e.g. P0420).');
+  return response.json();
+}
+
 
