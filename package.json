@@ -9,8 +9,8 @@
   "scripts": {
     "dev:mobile": "npm --workspace @repairo/mobile run dev",
     "dev:api": "npm --workspace @repairo/api run dev",
-    "lint": "npm run -ws lint",
-    "type-check": "npm run -ws type-check"
+    "lint": "npm run --workspaces lint",
+    "type-check": "npm run --workspaces type-check"
   },
   "dependencies": {
     "@types/react": "~19.1.10",
