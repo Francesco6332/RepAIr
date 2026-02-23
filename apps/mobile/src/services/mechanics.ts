@@ -23,7 +23,18 @@ async function fetchVerifiedWorkshops(lat: number, lng: number): Promise<Verifie
     .gte('lng', lng - delta)
     .lte('lng', lng + delta)
     .limit(50);
-  return (data ?? []) as VerifiedWorkshop[];
+
+  const nearby = (data ?? []) as VerifiedWorkshop[];
+  if (nearby.length > 0) return nearby;
+
+  // Fallback: if no geo-matched records are available, return a small generic set.
+  // Useful when seed data has no coordinates yet.
+  const { data: generic } = await supabase
+    .from('authorized_workshops')
+    .select('id, brand, workshop_name, address, lat, lng')
+    .limit(20);
+
+  return (generic ?? []) as VerifiedWorkshop[];
 }
 
 function isVerifiedMatch(osmName: string, verified: VerifiedWorkshop[]): boolean {
@@ -96,6 +107,30 @@ function normalizePlace(
   };
 }
 
+function normalizeVerifiedWorkshop(
+  workshop: VerifiedWorkshop,
+  origin: { lat: number; lng: number },
+  make?: string
+): MechanicCard {
+  const lat = workshop.lat ?? origin.lat;
+  const lng = workshop.lng ?? origin.lng;
+  const isOfficialDealer =
+    make !== undefined &&
+    workshop.brand.toLowerCase().includes(make.toLowerCase());
+
+  return {
+    id: `verified-${workshop.id}`,
+    name: workshop.workshop_name,
+    brandAuthorizedFor: isOfficialDealer && make ? [make] : [],
+    rating: 4.0,
+    reviewCount: 0,
+    distanceKm: haversineKm(origin.lat, origin.lng, lat, lng),
+    address: workshop.address ?? ADDRESS_UNAVAILABLE,
+    isOfficialDealer,
+    isVerifiedRepAIro: true,
+  };
+}
+
 function buildOverpassQuery(lat: number, lng: number, radius: number) {
   return `[out:json][timeout:25];
 (
@@ -128,14 +163,17 @@ export async function findMechanicsNearby(input: {
 }): Promise<MechanicCard[]> {
   const radius = (input.radiusKm ?? 10) * 1000;
 
-  // Fetch OSM results and verified workshops in parallel
-  const [elements, verified] = await Promise.all([
-    queryOverpass(buildOverpassQuery(input.lat, input.lng, radius)),
+  // Fetch OSM results and verified workshops in parallel.
+  // If Overpass fails, we still try to return verified workshops from Supabase.
+  const [overpass, verified] = await Promise.all([
+    queryOverpass(buildOverpassQuery(input.lat, input.lng, radius))
+      .then((elements) => ({ ok: true as const, elements }))
+      .catch(() => ({ ok: false as const, elements: [] as OverpassElement[] })),
     fetchVerifiedWorkshops(input.lat, input.lng).catch(() => [] as VerifiedWorkshop[]),
   ]);
 
   const seen = new Set<string>();
-  const results = elements
+  const results = overpass.elements
     .filter((p) => {
       const id = `${p.type}-${p.id}`;
       if (seen.has(id)) return false;
@@ -144,8 +182,15 @@ export async function findMechanicsNearby(input: {
     })
     .map((p) => normalizePlace(p, { lat: input.lat, lng: input.lng }, input.make, verified));
 
+  // Include verified workshops not present in OSM result set.
+  const verifiedOnly = verified
+    .filter((v) => !results.some((item) => isVerifiedMatch(item.name, [v])))
+    .map((v) => normalizeVerifiedWorkshop(v, { lat: input.lat, lng: input.lng }, input.make));
+
+  const merged = [...results, ...verifiedOnly];
+
   // Verified workshops bubble to the top, then sort by distance
-  return results.sort((a, b) => {
+  return merged.sort((a, b) => {
     if (a.isVerifiedRepAIro && !b.isVerifiedRepAIro) return -1;
     if (!a.isVerifiedRepAIro && b.isVerifiedRepAIro) return 1;
     return a.distanceKm - b.distanceKm;

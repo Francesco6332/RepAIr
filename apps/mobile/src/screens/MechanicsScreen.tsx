@@ -185,7 +185,12 @@ export function MechanicsScreen() {
         setList(data);
       }
     } catch (e) {
-      setError((e as Error).message);
+      const message = (e as Error).message;
+      if (message === 'SERVIZIO_OFFICINE_TEMP_UNAVAILABLE' || message.includes('Overpass')) {
+        setError('Servizio mappe temporaneamente non disponibile. Riprova tra qualche minuto.');
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
