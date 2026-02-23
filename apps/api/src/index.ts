@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
+import cron from 'node-cron';
 import { env } from './config/env';
+import { runReminderJob } from './jobs/reminderJob';
 import { supabaseAuth } from './middleware/supabaseAuth';
 import { freePlanQuota } from './middleware/quota';
 import { diagnoseRouter } from './routes/diagnose.route';
@@ -25,4 +27,9 @@ app.use('/api/diagnose/followup', supabaseAuth, freePlanQuota(), followUpRouter)
 
 app.listen(env.port, () => {
   console.log(`RepAIro API listening on http://localhost:${env.port}`);
+});
+
+// Daily reminder: 10:00 AM UTC
+cron.schedule('0 10 * * *', () => {
+  runReminderJob().catch((e) => console.error('[reminderJob] failed:', e));
 });

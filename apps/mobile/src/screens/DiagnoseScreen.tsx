@@ -21,6 +21,7 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { analyzeAudio, analyzePhoto, createPrediagnosis, lookupDtc, sendFollowUp } from '../services/api';
 import { saveDiagnosis } from '../services/diagnoses';
 import { shareDiagnosisPdf } from '../utils/buildDiagnosisPdf';
+import { scheduleLocalDiagnosisAlert } from '../services/notifications';
 import { useThemeStore } from '../store/useThemeStore';
 import { themes } from '../theme/tokens';
 import { ChatMessage, PrediagnosisResult } from '@repairo/shared';
@@ -88,6 +89,7 @@ export function DiagnoseScreen({ session }: Props) {
         { role: 'user', content: userContent },
         { role: 'assistant', content: `${data.probableIssue}. Confidence: ${Math.round(data.confidence * 100)}%. ${data.safetyAdvice}` },
       ]);
+      scheduleLocalDiagnosisAlert(data.urgency, data.probableIssue).catch(() => {});
       if (selectedVehicle) {
         saveDiagnosis({
           userId: session.user.id,

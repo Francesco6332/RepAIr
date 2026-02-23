@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Session } from '@supabase/supabase-js';
 import { RootNavigator } from './navigation/RootNavigator';
 import { supabase } from './services/supabase';
+import { registerForPushNotifications } from './services/notifications';
 
 const ONBOARDED_KEY = '@repairo/onboarded_v1';
 
@@ -42,6 +43,12 @@ export default function App() {
     AsyncStorage.getItem(key)
       .then((val) => setNeedsOnboarding(val !== 'true'))
       .catch(() => setNeedsOnboarding(false));
+  }, [session?.user.id]);
+
+  // Register for push notifications after login
+  useEffect(() => {
+    if (!session) return;
+    registerForPushNotifications(session.user.id).catch(() => {});
   }, [session?.user.id]);
 
   const handleOnboardingComplete = async () => {

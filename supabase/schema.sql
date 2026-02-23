@@ -169,3 +169,16 @@ create policy "Own messages" on diagnosis_messages
 for all using (
   diagnosis_id in (select id from diagnoses where user_id = auth.uid())
 );
+
+-- Push notification tokens
+create table if not exists push_tokens (
+  user_id uuid primary key references profiles(id) on delete cascade,
+  token text not null,
+  platform text,
+  updated_at timestamptz default now()
+);
+
+alter table push_tokens enable row level security;
+
+create policy "Own push token" on push_tokens
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

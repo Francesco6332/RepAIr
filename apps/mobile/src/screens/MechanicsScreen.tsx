@@ -95,7 +95,7 @@ export function MechanicsScreen() {
 
         {/* Search button */}
         <PrimaryButton
-          label={loading ? 'Searching…' : 'Search via OpenStreetMap'}
+          label={loading ? 'Searching…' : 'Search Workshops'}
           onPress={search}
           color={tokens.primary}
           disabled={loading}
