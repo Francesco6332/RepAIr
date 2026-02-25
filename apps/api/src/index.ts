@@ -3,6 +3,7 @@ import cors from 'cors';
 import cron from 'node-cron';
 import { env } from './config/env';
 import { runReminderJob } from './jobs/reminderJob';
+import { runDiagnosisRetentionJob } from './jobs/diagnosisRetentionJob';
 import { supabaseAuth } from './middleware/supabaseAuth';
 import { freePlanQuota } from './middleware/quota';
 import { diagnoseRouter } from './routes/diagnose.route';
@@ -34,4 +35,9 @@ app.listen(env.port, () => {
 // Daily reminder: 10:00 AM UTC
 cron.schedule('0 10 * * *', () => {
   runReminderJob().catch((e) => console.error('[reminderJob] failed:', e));
+});
+
+// Daily retention cleanup: 02:15 AM UTC
+cron.schedule('15 2 * * *', () => {
+  runDiagnosisRetentionJob().catch((e) => console.error('[diagnosisRetentionJob] failed:', e));
 });

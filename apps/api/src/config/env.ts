@@ -8,5 +8,6 @@ export const env = {
   supabaseUrl: process.env.SUPABASE_URL ?? '',
   supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? '',
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+  diagnosesRetentionDays: Number(process.env.DIAGNOSES_RETENTION_DAYS ?? 30),
   appEnv: process.env.NODE_ENV ?? 'development'
 };
