@@ -11,6 +11,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { PricingScreen } from '../screens/PricingScreen';
+import { GdprConsentScreen } from '../screens/GdprConsentScreen';
 import { GlassTabBar } from './GlassTabBar';
 
 type TabParamList = {
@@ -64,13 +65,25 @@ type RootNavigatorProps = {
   session: Session | null;
   needsOnboarding: boolean;
   onOnboardingComplete: () => void;
+  gdprAccepted: boolean;
+  onGdprAccept: () => void;
 };
 
-export function RootNavigator({ session, needsOnboarding, onOnboardingComplete }: RootNavigatorProps) {
+export function RootNavigator({
+  session,
+  needsOnboarding,
+  onOnboardingComplete,
+  gdprAccepted,
+  onGdprAccept,
+}: RootNavigatorProps) {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
-        {!session ? (
+        {!gdprAccepted ? (
+          <Stack.Screen name="GdprConsent">
+            {() => <GdprConsentScreen onAccept={onGdprAccept} />}
+          </Stack.Screen>
+        ) : !session ? (
           <Stack.Screen name="Auth" component={AuthScreen} />
         ) : needsOnboarding ? (
           <Stack.Screen name="Onboarding">

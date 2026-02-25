@@ -90,4 +90,13 @@ export async function lookupDtc(payload: {
   return response.json();
 }
 
+export async function deleteAccount(): Promise<void> {
+  const response = await fetch(`${BASE_URL}/api/user`, {
+    method: 'DELETE',
+    headers: await authHeaders()
+  });
+
+  if (!response.ok) throw new Error('Account deletion failed.');
+}
+
 

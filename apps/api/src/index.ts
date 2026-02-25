@@ -12,6 +12,7 @@ import { mediaRouter } from './routes/media.route';
 import { costsRouter } from './routes/costs.route';
 import { dtcRouter } from './routes/dtc.route';
 import { followUpRouter } from './routes/followup.route';
+import { userRouter } from './routes/user.route';
 
 const app = express();
 app.use(cors());
@@ -24,6 +25,7 @@ app.use('/api/media', supabaseAuth, freePlanQuota(), mediaRouter);
 app.use('/api/costs', supabaseAuth, costsRouter);
 app.use('/api/dtc', supabaseAuth, freePlanQuota(), dtcRouter);
 app.use('/api/diagnose/followup', supabaseAuth, freePlanQuota(), followUpRouter);
+app.use('/api/user', supabaseAuth, userRouter);
 
 app.listen(env.port, () => {
   console.log(`RepAIro API listening on http://localhost:${env.port}`);

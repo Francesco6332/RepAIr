@@ -11,11 +11,24 @@ import { registerForPushNotifications } from './services/notifications';
 import { I18nProvider } from './i18n';
 
 const ONBOARDED_KEY = '@repairo/onboarded_v1';
+const GDPR_KEY = '@repairo/gdpr_consent_v1';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [gdprAccepted, setGdprAccepted] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(GDPR_KEY)
+      .then((val) => setGdprAccepted(val === 'accepted'))
+      .catch(() => setGdprAccepted(false));
+  }, []);
+
+  const handleGdprAccept = async () => {
+    await AsyncStorage.setItem(GDPR_KEY, 'accepted');
+    setGdprAccepted(true);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -58,7 +71,7 @@ export default function App() {
     setNeedsOnboarding(false);
   };
 
-  if (loading) {
+  if (loading || gdprAccepted === null) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#080B12' }}>
         <ActivityIndicator size="large" color="#34D399" />
@@ -74,6 +87,8 @@ export default function App() {
           session={session}
           needsOnboarding={needsOnboarding}
           onOnboardingComplete={handleOnboardingComplete}
+          gdprAccepted={gdprAccepted}
+          onGdprAccept={handleGdprAccept}
         />
       </I18nProvider>
     </SafeAreaProvider>

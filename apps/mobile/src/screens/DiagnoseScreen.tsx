@@ -117,16 +117,10 @@ const URGENCY_COLOR: Record<string, string> = {
   critical: '#F87171',
 };
 
-const URGENCY_LABEL: Record<string, string> = {
-  low: 'Bassa urgenza',
-  medium: 'Urgenza media',
-  high: 'Alta urgenza',
-};
-
-const CAN_DRIVE_CONFIG = {
-  yes: { color: '#34D399', bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.25)', icon: 'checkmark-circle' as const, label: 'Puoi guidare', sub: 'Veicolo utilizzabile, vai in officina al più presto' },
-  with_caution: { color: '#FBBF24', bg: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.25)', icon: 'warning' as const, label: 'Guida con cautela', sub: 'Solo se necessario — vai subito in officina' },
-  no: { color: '#F87171', bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.25)', icon: 'close-circle' as const, label: 'Non guidare', sub: 'Ferma il veicolo e chiama un meccanico' },
+const CAN_DRIVE_VISUAL = {
+  yes: { color: '#34D399', bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.25)', icon: 'checkmark-circle' as const },
+  with_caution: { color: '#FBBF24', bg: 'rgba(251,191,36,0.12)', border: 'rgba(251,191,36,0.25)', icon: 'warning' as const },
+  no: { color: '#F87171', bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.25)', icon: 'close-circle' as const },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -136,7 +130,7 @@ export function DiagnoseScreen({ session }: Props) {
   const insets = useSafeAreaInsets();
   const preset = useThemeStore((s) => s.preset);
   const tokens = useMemo(() => themes[preset], [preset]);
-  const { formatDate } = useI18n();
+  const { t, formatDate } = useI18n();
   const { vehicles, selectedVehicleId, setLastDiagnosis } = useVehicleStore();
 
   // Wizard state
@@ -175,7 +169,7 @@ export function DiagnoseScreen({ session }: Props) {
   // ─── Diagnosis handlers ─────────────────────────────────────────────────────
 
   const withGuard = async (fn: () => Promise<PrediagnosisResult>, type: 'text' | 'photo' | 'audio', userContent: string) => {
-    if (!vehicleContext) { setError('Aggiungi e seleziona un veicolo prima dal tab Veicoli.'); return; }
+    if (!vehicleContext) { setError(t('diagnose.noVehicleError')); return; }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -202,7 +196,7 @@ export function DiagnoseScreen({ session }: Props) {
   const onDiagnoseText = async () => {
     Keyboard.dismiss();
     const prompt = finalPrompt;
-    if (!prompt.trim()) { setError('Seleziona almeno un tipo di problema o scrivi una descrizione.'); return; }
+    if (!prompt.trim()) { setError(t('diagnose.emptyPromptError')); return; }
     await withGuard(
       async () => createPrediagnosis({ mode: 'text', prompt, region: 'IT', vehicle: vehicleContext! }),
       'text',
@@ -212,11 +206,11 @@ export function DiagnoseScreen({ session }: Props) {
 
   const onAnalyzePhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) { setError('Permesso foto richiesto.'); return; }
+    if (!permission.granted) { setError(t('diagnose.photoPermission')); return; }
     const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.5, base64: true });
     if (picked.canceled) return;
     const asset = picked.assets[0];
-    if (!asset.base64) { setError('Impossibile leggere i dati immagine.'); return; }
+    if (!asset.base64) { setError(t('diagnose.photoReadError')); return; }
     await withGuard(
       async () => analyzePhoto({ imageBase64: asset.base64!, mimeType: asset.mimeType ?? 'image/jpeg', region: 'IT', vehicle: vehicleContext! }),
       'photo', 'Analisi foto problema visibile'
@@ -226,7 +220,7 @@ export function DiagnoseScreen({ session }: Props) {
   const onToggleAudio = async () => {
     if (!recording) {
       const permission = await Audio.requestPermissionsAsync();
-      if (!permission.granted) { setError('Permesso microfono richiesto.'); return; }
+      if (!permission.granted) { setError(t('diagnose.micPermission')); return; }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       const rec = new Audio.Recording();
       await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
@@ -248,7 +242,7 @@ export function DiagnoseScreen({ session }: Props) {
 
   const onLookupDtc = async () => {
     Keyboard.dismiss();
-    if (!dtcCode.trim()) { setError('Inserisci un codice OBD-II (es. P0420).'); return; }
+    if (!dtcCode.trim()) { setError(t('diagnose.dtcError')); return; }
     await withGuard(
       async () => lookupDtc({ code: dtcCode.trim(), region: 'IT', vehicle: vehicleContext! }),
       'text', `Codice OBD-II: ${dtcCode.trim()}`
@@ -285,7 +279,7 @@ export function DiagnoseScreen({ session }: Props) {
     setSharing(true);
     try {
       await shareDiagnosisPdf({
-        vehicle: selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} · ${selectedVehicle.year}` : 'Veicolo sconosciuto',
+        vehicle: selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} · ${selectedVehicle.year}` : t('diagnose.unknownVehicle'),
         date: formatDate(new Date(), { day: 'numeric', month: 'long', year: 'numeric' }),
         probableIssue: result.probableIssue,
         confidence: result.confidence,
@@ -310,8 +304,10 @@ export function DiagnoseScreen({ session }: Props) {
   };
 
   const urgencyColor = result ? (URGENCY_COLOR[result.urgency.toLowerCase()] ?? tokens.warning) : tokens.warning;
-  const urgencyLabel = result ? (URGENCY_LABEL[result.urgency.toLowerCase()] ?? result.urgency) : '';
-  const canDriveCfg = result?.canDrive ? CAN_DRIVE_CONFIG[result.canDrive] : null;
+  const urgencyLabel = result ? (t(`diagnose.urgency.${result.urgency.toLowerCase()}`) ?? result.urgency) : '';
+  const canDriveVisual = result?.canDrive ? CAN_DRIVE_VISUAL[result.canDrive] : null;
+  const canDriveLabel = result?.canDrive ? t(`diagnose.canDrive.${result.canDrive === 'with_caution' ? 'caution' : result.canDrive}.label`) : '';
+  const canDriveSub = result?.canDrive ? t(`diagnose.canDrive.${result.canDrive === 'with_caution' ? 'caution' : result.canDrive}.sub`) : '';
 
   return (
     <Gradient colors={[tokens.bg, tokens.bgAlt, tokens.bgDeep]} style={[styles.page, { paddingTop: insets.top + 16 }]}>
@@ -321,8 +317,8 @@ export function DiagnoseScreen({ session }: Props) {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        <Text style={[styles.pageTitle, { color: tokens.text }]}>Diagnosi</Text>
-        <Text style={[styles.pageSubtitle, { color: tokens.textMuted }]}>Pre-diagnosi AI</Text>
+        <Text style={[styles.pageTitle, { color: tokens.text }]}>{t('diagnose.title')}</Text>
+        <Text style={[styles.pageSubtitle, { color: tokens.textMuted }]}>{t('diagnose.subtitle')}</Text>
 
         {/* Vehicle chip */}
         <GlassCard backgroundColor={tokens.glass} style={styles.card}>
@@ -331,9 +327,9 @@ export function DiagnoseScreen({ session }: Props) {
               <Ionicons name="car-sport" size={18} color={tokens.primary} />
             </View>
             <View style={styles.vehicleInfo}>
-              <Text style={[styles.vehicleLabel, { color: tokens.textMuted }]}>Veicolo attivo</Text>
+              <Text style={[styles.vehicleLabel, { color: tokens.textMuted }]}>{t('diagnose.vehicleActive')}</Text>
               <Text style={[styles.vehicleName, { color: tokens.text }]}>
-                {selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} · ${selectedVehicle.year}` : 'Nessun veicolo selezionato'}
+                {selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} · ${selectedVehicle.year}` : t('diagnose.noVehicle')}
               </Text>
             </View>
             {!selectedVehicle && <Ionicons name="alert-circle-outline" size={18} color={tokens.warning} />}
@@ -344,7 +340,7 @@ export function DiagnoseScreen({ session }: Props) {
         <GlassCard backgroundColor={tokens.glass} style={styles.card}>
 
           {/* Step 1: Tipo di problema */}
-          <Text style={[styles.wizardLabel, { color: tokens.textMuted }]}>Che tipo di problema?</Text>
+          <Text style={[styles.wizardLabel, { color: tokens.textMuted }]}>{t('diagnose.wizard.problemLabel')}</Text>
           <View style={styles.chipGrid}>
             {PROBLEM_TYPES.map((opt) => {
               const active = problemType === opt.key;
@@ -361,7 +357,7 @@ export function DiagnoseScreen({ session }: Props) {
                   ]}
                 >
                   <Ionicons name={opt.icon} size={13} color={active ? tokens.primary : tokens.textMuted} />
-                  <Text style={[styles.chipText, { color: active ? tokens.primary : tokens.textMuted }]}>{opt.label}</Text>
+                  <Text style={[styles.chipText, { color: active ? tokens.primary : tokens.textMuted }]}>{t(`diagnose.problem.${opt.key}`)}</Text>
                 </Pressable>
               );
             })}
@@ -371,7 +367,7 @@ export function DiagnoseScreen({ session }: Props) {
           {problemType && (
             <>
               <View style={[styles.wizardDivider, { backgroundColor: tokens.glassBorder }]} />
-              <Text style={[styles.wizardLabel, { color: tokens.textMuted }]}>Da quando?</Text>
+              <Text style={[styles.wizardLabel, { color: tokens.textMuted }]}>{t('diagnose.wizard.timingLabel')}</Text>
               <View style={styles.chipRow}>
                 {TIMINGS.map((opt) => {
                   const active = timing === opt.key;
@@ -387,13 +383,13 @@ export function DiagnoseScreen({ session }: Props) {
                         },
                       ]}
                     >
-                      <Text style={[styles.chipText, { color: active ? tokens.accent : tokens.textMuted }]}>{opt.label}</Text>
+                      <Text style={[styles.chipText, { color: active ? tokens.accent : tokens.textMuted }]}>{t(`diagnose.timing.${opt.key}`)}</Text>
                     </Pressable>
                   );
                 })}
               </View>
 
-              <Text style={[styles.wizardLabel, { color: tokens.textMuted, marginTop: 12 }]}>In quale condizione?</Text>
+              <Text style={[styles.wizardLabel, { color: tokens.textMuted, marginTop: 12 }]}>{t('diagnose.wizard.conditionLabel')}</Text>
               <View style={styles.chipRow}>
                 {CONDITIONS.map((opt) => {
                   const active = condition === opt.key;
@@ -409,7 +405,7 @@ export function DiagnoseScreen({ session }: Props) {
                         },
                       ]}
                     >
-                      <Text style={[styles.chipText, { color: active ? tokens.accent : tokens.textMuted }]}>{opt.label}</Text>
+                      <Text style={[styles.chipText, { color: active ? tokens.accent : tokens.textMuted }]}>{t(`diagnose.condition.${opt.key}`)}</Text>
                     </Pressable>
                   );
                 })}
@@ -421,10 +417,10 @@ export function DiagnoseScreen({ session }: Props) {
           <View style={[styles.wizardDivider, { backgroundColor: tokens.glassBorder, marginTop: problemType ? 12 : 0 }]} />
           <GlassInput
             tokens={tokens}
-            label="Dettagli aggiuntivi (opzionale)"
+            label={t('diagnose.wizard.detailsLabel')}
             value={extraText}
             onChangeText={setExtraText}
-            placeholder="Es. la spia si accende quando accelero in salita…"
+            placeholder={t('diagnose.wizard.detailsPlaceholder')}
             multiline
             style={styles.textArea}
             textAlignVertical="top"
@@ -436,8 +432,8 @@ export function DiagnoseScreen({ session }: Props) {
               <Ionicons name="bulb-outline" size={14} color={tokens.primary} />
               <Text style={[styles.suggestionText, { color: tokens.primary }]}>
                 {mediaSuggestion === 'audio'
-                  ? 'Per questo tipo di problema una registrazione audio migliora molto la diagnosi →'
-                  : 'Una foto del problema aiuterebbe la diagnosi →'}
+                  ? t('diagnose.wizard.suggestionAudio')
+                  : t('diagnose.wizard.suggestionPhoto')}
               </Text>
               <Pressable
                 onPress={mediaSuggestion === 'audio' ? onToggleAudio : onAnalyzePhoto}
@@ -445,7 +441,7 @@ export function DiagnoseScreen({ session }: Props) {
               >
                 <Ionicons name={mediaSuggestion === 'audio' ? 'mic' : 'camera'} size={13} color={tokens.primary} />
                 <Text style={[styles.suggestionBtnText, { color: tokens.primary }]}>
-                  {mediaSuggestion === 'audio' ? (recording ? 'Stop' : 'Registra') : 'Foto'}
+                  {mediaSuggestion === 'audio' ? (recording ? t('diagnose.wizard.stop') : t('diagnose.wizard.record')) : t('diagnose.wizard.photo')}
                 </Text>
               </Pressable>
             </View>
@@ -462,7 +458,7 @@ export function DiagnoseScreen({ session }: Props) {
           <View style={styles.mediaRow}>
             <Pressable onPress={onAnalyzePhoto} style={[styles.mediaBtn, { borderColor: tokens.accent + '80' }]}>
               <Ionicons name="image-outline" size={17} color={tokens.accent} />
-              <Text style={[styles.mediaBtnText, { color: tokens.accent }]}>Foto</Text>
+              <Text style={[styles.mediaBtnText, { color: tokens.accent }]}>{t('diagnose.wizard.photo')}</Text>
             </Pressable>
             <Pressable
               onPress={onToggleAudio}
@@ -470,7 +466,7 @@ export function DiagnoseScreen({ session }: Props) {
             >
               <Ionicons name={recording ? 'stop-circle' : 'mic-outline'} size={17} color={recording ? tokens.danger : tokens.warning} />
               <Text style={[styles.mediaBtnText, { color: recording ? tokens.danger : tokens.warning }]}>
-                {recording ? 'Stop' : 'Audio'}
+                {recording ? t('diagnose.wizard.stop') : t('diagnose.wizard.audio')}
               </Text>
             </Pressable>
             <Pressable
@@ -484,8 +480,8 @@ export function DiagnoseScreen({ session }: Props) {
 
           {dtcVisible && (
             <View style={styles.dtcPanel}>
-              <GlassInput tokens={tokens} label="Codice OBD-II" value={dtcCode} onChangeText={(t) => setDtcCode(t.toUpperCase())} placeholder="P0420" autoCapitalize="characters" maxLength={7} />
-              <PrimaryButton label="Analizza Codice" onPress={onLookupDtc} color={tokens.primary} disabled={loading} />
+              <GlassInput tokens={tokens} label={t('diagnose.obd.label')} value={dtcCode} onChangeText={(v) => setDtcCode(v.toUpperCase())} placeholder="P0420" autoCapitalize="characters" maxLength={7} />
+              <PrimaryButton label={t('diagnose.obd.analyze')} onPress={onLookupDtc} color={tokens.primary} disabled={loading} />
             </View>
           )}
         </GlassCard>
@@ -493,7 +489,7 @@ export function DiagnoseScreen({ session }: Props) {
         {loading && (
           <View style={styles.loadingRow}>
             <ActivityIndicator size="small" color={tokens.primary} />
-            <Text style={[styles.loadingText, { color: tokens.textMuted }]}>Analisi in corso…</Text>
+            <Text style={[styles.loadingText, { color: tokens.textMuted }]}>{t('diagnose.analyzing')}</Text>
           </View>
         )}
 
@@ -507,20 +503,20 @@ export function DiagnoseScreen({ session }: Props) {
         {/* ── STRUCTURED RESULT REPORT ── */}
         {result ? (
           <>
-            {canDriveCfg && (
-              <View style={[styles.driveBanner, { backgroundColor: canDriveCfg.bg, borderColor: canDriveCfg.border }]}>
-                <View style={[styles.driveIconWrap, { backgroundColor: canDriveCfg.color + '20' }]}>
-                  <Ionicons name={canDriveCfg.icon} size={22} color={canDriveCfg.color} />
+            {canDriveVisual && (
+              <View style={[styles.driveBanner, { backgroundColor: canDriveVisual.bg, borderColor: canDriveVisual.border }]}>
+                <View style={[styles.driveIconWrap, { backgroundColor: canDriveVisual.color + '20' }]}>
+                  <Ionicons name={canDriveVisual.icon} size={22} color={canDriveVisual.color} />
                 </View>
                 <View style={styles.driveText}>
-                  <Text style={[styles.driveLabel, { color: canDriveCfg.color }]}>{canDriveCfg.label}</Text>
-                  <Text style={[styles.driveSub, { color: canDriveCfg.color }]}>{canDriveCfg.sub}</Text>
+                  <Text style={[styles.driveLabel, { color: canDriveVisual.color }]}>{canDriveLabel}</Text>
+                  <Text style={[styles.driveSub, { color: canDriveVisual.color }]}>{canDriveSub}</Text>
                 </View>
               </View>
             )}
 
             <GlassCard backgroundColor={tokens.glass} style={styles.card}>
-              <Text style={[styles.sectionLabel, { color: tokens.textMuted }]}>DIAGNOSI PRINCIPALE</Text>
+              <Text style={[styles.sectionLabel, { color: tokens.textMuted }]}>{t('diagnose.result.mainDiagnosis')}</Text>
               <View style={styles.resultHeader}>
                 <View style={[styles.resultIcon, { backgroundColor: tokens.accent + '20' }]}>
                   <Ionicons name="construct" size={18} color={tokens.accent} />
@@ -541,7 +537,7 @@ export function DiagnoseScreen({ session }: Props) {
                 )}
               </View>
               <View style={styles.confRow}>
-                <Text style={[styles.confLabel, { color: tokens.textMuted }]}>Confidenza AI</Text>
+                <Text style={[styles.confLabel, { color: tokens.textMuted }]}>{t('diagnose.result.aiConfidence')}</Text>
                 <Text style={[styles.confValue, { color: tokens.primary }]}>{Math.round(result.confidence * 100)}%</Text>
               </View>
               <View style={[styles.barBg, { backgroundColor: tokens.glassBorder }]}>
@@ -551,7 +547,7 @@ export function DiagnoseScreen({ session }: Props) {
 
             {result.topCauses && result.topCauses.length > 0 && (
               <GlassCard backgroundColor={tokens.glass} style={styles.card}>
-                <Text style={[styles.sectionLabel, { color: tokens.textMuted }]}>CAUSE PROBABILI</Text>
+                <Text style={[styles.sectionLabel, { color: tokens.textMuted }]}>{t('diagnose.result.topCauses')}</Text>
                 {result.topCauses.map((c, i) => (
                   <View key={i} style={styles.causeRow}>
                     <View style={[styles.causeNum, { backgroundColor: tokens.primaryGlow }]}>
@@ -575,14 +571,14 @@ export function DiagnoseScreen({ session }: Props) {
               <View style={[styles.riskBox, { backgroundColor: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.22)' }]}>
                 <View style={styles.riskHeader}>
                   <Ionicons name="flame-outline" size={15} color="#F87171" />
-                  <Text style={[styles.riskTitle, { color: '#F87171' }]}>RISCHI SE IGNORI</Text>
+                  <Text style={[styles.riskTitle, { color: '#F87171' }]}>{t('diagnose.result.ignoreRisks')}</Text>
                 </View>
                 <Text style={[styles.riskText, { color: tokens.textMuted }]}>{result.ignoreRisks}</Text>
               </View>
             ) : null}
 
             <GlassCard backgroundColor={tokens.glass} style={styles.card}>
-              <Text style={[styles.sectionLabel, { color: tokens.textMuted }]}>CONSIGLIO DI SICUREZZA</Text>
+              <Text style={[styles.sectionLabel, { color: tokens.textMuted }]}>{t('diagnose.result.safetyAdvice')}</Text>
               <View style={styles.adviceBox}>
                 <Ionicons name="shield-checkmark-outline" size={14} color={tokens.textMuted} />
                 <Text style={[styles.adviceText, { color: tokens.textMuted }]}>{result.safetyAdvice}</Text>
@@ -591,7 +587,7 @@ export function DiagnoseScreen({ session }: Props) {
 
             {result.userChecks && result.userChecks.length > 0 && (
               <GlassCard backgroundColor={tokens.glass} style={styles.card}>
-                <Text style={[styles.sectionLabel, { color: tokens.textMuted }]}>COSA PUOI FARE ORA (5 MIN)</Text>
+                <Text style={[styles.sectionLabel, { color: tokens.textMuted }]}>{t('diagnose.result.userChecks')}</Text>
                 {result.userChecks.map((check, i) => (
                   <View key={i} style={styles.checkRow}>
                     <View style={[styles.checkDot, { backgroundColor: tokens.primary + '40' }]} />
@@ -603,7 +599,7 @@ export function DiagnoseScreen({ session }: Props) {
 
             {result.nextChecks && result.nextChecks.length > 0 && (
               <GlassCard backgroundColor={tokens.glass} style={styles.card}>
-                <Text style={[styles.sectionLabel, { color: tokens.textMuted }]}>CHECKLIST MECCANICO</Text>
+                <Text style={[styles.sectionLabel, { color: tokens.textMuted }]}>{t('diagnose.result.mechanicChecklist')}</Text>
                 {result.nextChecks.map((check, i) => (
                   <View key={i} style={styles.mechanicRow}>
                     <Text style={[styles.checkbox, { color: tokens.textMuted }]}>□</Text>
@@ -617,7 +613,7 @@ export function DiagnoseScreen({ session }: Props) {
               <GlassCard backgroundColor={tokens.glass} style={styles.card}>
                 <View style={styles.questionsHeader}>
                   <Ionicons name="help-circle-outline" size={15} color={tokens.primary} />
-                  <Text style={[styles.sectionLabel, { color: tokens.textMuted }]}>DOMANDE DA FARE IN OFFICINA</Text>
+                  <Text style={[styles.sectionLabel, { color: tokens.textMuted }]}>{t('diagnose.result.mechanicQuestions')}</Text>
                 </View>
                 {result.mechanicQuestions.map((q, i) => (
                   <View key={i} style={styles.questionRow}>
@@ -635,7 +631,7 @@ export function DiagnoseScreen({ session }: Props) {
             >
               <Ionicons name={sharing ? 'hourglass-outline' : 'document-text-outline'} size={15} color={tokens.primary} />
               <Text style={[styles.shareBtnText, { color: tokens.primary }]}>
-                {sharing ? 'Generazione…' : 'Esporta PDF · Pro'}
+                {sharing ? t('diagnose.pdf.generating') : t('diagnose.pdf.export')}
               </Text>
               <View style={[styles.proBadge, { backgroundColor: tokens.primary + '22', borderColor: tokens.primary + '44' }]}>
                 <Text style={[styles.proBadgeText, { color: tokens.primary }]}>PRO</Text>
@@ -649,7 +645,7 @@ export function DiagnoseScreen({ session }: Props) {
           <GlassCard backgroundColor={tokens.glass} style={styles.card}>
             <View style={styles.chatHeader}>
               <Ionicons name="chatbubbles-outline" size={15} color={tokens.primary} />
-              <Text style={[styles.chatTitle, { color: tokens.text }]}>Continua la diagnosi</Text>
+              <Text style={[styles.chatTitle, { color: tokens.text }]}>{t('diagnose.chat.title')}</Text>
             </View>
             {chatMessages.map((msg, i) => (
               <View
@@ -667,7 +663,7 @@ export function DiagnoseScreen({ session }: Props) {
             {chatLoading && (
               <View style={styles.chatLoadingRow}>
                 <ActivityIndicator size="small" color={tokens.primary} />
-                <Text style={[styles.loadingText, { color: tokens.textMuted }]}>Sto analizzando…</Text>
+                <Text style={[styles.loadingText, { color: tokens.textMuted }]}>{t('diagnose.chat.analyzing')}</Text>
               </View>
             )}
             <View style={[styles.chatInputRow, { borderTopColor: tokens.glassBorder }]}>
@@ -675,7 +671,7 @@ export function DiagnoseScreen({ session }: Props) {
                 style={[styles.chatInput, { color: tokens.text }]}
                 value={followUpText}
                 onChangeText={setFollowUpText}
-                placeholder="Fai una domanda di approfondimento…"
+                placeholder={t('diagnose.chat.placeholder')}
                 placeholderTextColor={tokens.textMuted}
                 onSubmitEditing={onSendFollowUp}
                 returnKeyType="send"

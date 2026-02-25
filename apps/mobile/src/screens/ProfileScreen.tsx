@@ -19,8 +19,11 @@ import { useThemeStore } from '../store/useThemeStore';
 import { ThemePreset, themes } from '../theme/tokens';
 import { getProfile, updateProfile } from '../services/profile';
 import { supabase } from '../services/supabase';
+import { deleteAccount } from '../services/api';
 import { useVehicleStore } from '../store/useVehicleStore';
 import { useI18n } from '../i18n';
+import { PrivacyPolicyModal } from '../components/PrivacyPolicyModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Props = { session: Session };
 
@@ -49,6 +52,8 @@ export function ProfileScreen({ session }: Props) {
   const [displayName, setDisplayName] = useState('');
   const [saving, setSaving] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     getProfile(session.user.id)
@@ -76,6 +81,38 @@ export function ProfileScreen({ session }: Props) {
       { text: t('profile.cancel'), style: 'cancel' },
       { text: t('profile.signout'), style: 'destructive', onPress: () => supabase.auth.signOut() },
     ]);
+  };
+
+  const confirmDelete = () => {
+    Alert.alert(
+      t('profile.deleteConfirmTitle'),
+      t('profile.deleteConfirmBody'),
+      [
+        { text: t('profile.cancel'), style: 'cancel' },
+        {
+          text: t('profile.deleteConfirmOk'),
+          style: 'destructive',
+          onPress: handleDeleteAccount,
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    try {
+      await deleteAccount();
+      await AsyncStorage.multiRemove([
+        '@repairo/usage_v1',
+        '@repairo/plan_v1',
+        `@repairo/onboarded_v1_${session.user.id}`,
+        '@repairo/gdpr_consent_v1',
+      ]);
+      await supabase.auth.signOut();
+    } catch {
+      Alert.alert(t('profile.errorTitle'), t('profile.deleteError'));
+      setDeletingAccount(false);
+    }
   };
 
   const initials = getInitials(session.user.email ?? 'U', displayName || undefined);
@@ -194,6 +231,27 @@ export function ProfileScreen({ session }: Props) {
           </View>
         </GlassCard>
 
+        {/* Privacy & Data */}
+        <GlassCard backgroundColor={tokens.glass} style={styles.card}>
+          <Text style={[styles.sectionTitle, { color: tokens.text }]}>{t('profile.privacySection')}</Text>
+          <Pressable onPress={() => setShowPrivacy(true)} style={styles.actionRow}>
+            <Ionicons name="document-text-outline" size={18} color={tokens.textMuted} />
+            <Text style={[styles.actionText, { color: tokens.text }]}>{t('profile.privacyLink')}</Text>
+            <Ionicons name="chevron-forward" size={16} color={tokens.textMuted} />
+          </Pressable>
+          <View style={[styles.rowDivider, { backgroundColor: tokens.glassBorder }]} />
+          <Pressable
+            onPress={confirmDelete}
+            style={styles.actionRow}
+            disabled={deletingAccount}
+          >
+            <Ionicons name="trash-outline" size={18} color={tokens.danger} />
+            <Text style={[styles.actionText, { color: tokens.danger }]}>
+              {deletingAccount ? t('profile.deleting') : t('profile.deleteAccount')}
+            </Text>
+          </Pressable>
+        </GlassCard>
+
         {/* Sign out */}
         <GlassCard backgroundColor={tokens.glass} style={styles.card}>
           <Pressable onPress={signOut} style={styles.signOutRow}>
@@ -202,6 +260,12 @@ export function ProfileScreen({ session }: Props) {
           </Pressable>
         </GlassCard>
       </ScrollView>
+
+      <PrivacyPolicyModal
+        visible={showPrivacy}
+        onClose={() => setShowPrivacy(false)}
+        tokens={tokens}
+      />
     </Gradient>
   );
 }
@@ -259,4 +323,7 @@ const styles = StyleSheet.create({
   swatchText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   signOutRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   signOutText: { fontWeight: '700', fontSize: 15 },
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  actionText: { flex: 1, fontSize: 15, fontWeight: '500' },
+  rowDivider: { height: 0.5, marginVertical: 10 },
 });

@@ -44,10 +44,6 @@ function buildTimeline(diagnoses: DiagnosisRecord[], maintenance: MaintenanceEnt
   return events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 15);
 }
 
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString();
-}
 
 const URGENCY_COLOR: Record<string, string> = {
   low: '#34D399',
@@ -62,27 +58,15 @@ const MAINTENANCE_ICONS: Record<MaintenanceType, React.ComponentProps<typeof Ion
   other: 'ellipsis-horizontal-circle-outline',
 };
 
-const MAINTENANCE_LABELS: Record<MaintenanceType, string> = {
-  service: 'Tagliando',
-  repair: 'Riparazione',
-  inspection: 'Revisione',
-  other: 'Altro',
+const MAINTENANCE_TYPE_KEYS: MaintenanceType[] = ['service', 'repair', 'inspection', 'other'];
+const REMINDER_TYPE_ICONS: Record<ReminderType, React.ComponentProps<typeof Ionicons>['name']> = {
+  revision: 'car-outline',
+  insurance: 'shield-outline',
+  tax: 'receipt-outline',
+  service: 'construct-outline',
+  custom: 'calendar-outline',
 };
-
-const MAINTENANCE_TYPE_OPTIONS: { key: MaintenanceType; label: string }[] = [
-  { key: 'service', label: 'Tagliando' },
-  { key: 'repair', label: 'Riparazione' },
-  { key: 'inspection', label: 'Revisione/Collaudo' },
-  { key: 'other', label: 'Altro' },
-];
-
-const REMINDER_TYPE_OPTIONS: { key: ReminderType; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
-  { key: 'revision', label: 'Revisione', icon: 'car-outline' },
-  { key: 'insurance', label: 'Assicurazione', icon: 'shield-outline' },
-  { key: 'tax', label: 'Bollo', icon: 'receipt-outline' },
-  { key: 'service', label: 'Tagliando', icon: 'construct-outline' },
-  { key: 'custom', label: 'Personalizzato', icon: 'calendar-outline' },
-];
+const REMINDER_TYPE_KEYS: ReminderType[] = ['revision', 'insurance', 'tax', 'service', 'custom'];
 
 const FUEL_ICONS: Record<string, string> = {
   petrol: 'flame',
@@ -96,7 +80,7 @@ const FUEL_ICONS: Record<string, string> = {
 // ─── Add Maintenance Modal ────────────────────────────────────────────────────
 
 function AddMaintenanceModal({ visible, onClose, onSave, tokens }: { visible: boolean; onClose: () => void; onSave: (data: { type: MaintenanceType; description: string; cost?: number; workshopName?: string }) => void; tokens: ThemeTokens }) {
-  const Gradient = LinearGradient as unknown as React.ComponentType<any>;
+  const { t } = useI18n();
   const [type, setType] = useState<MaintenanceType>('service');
   const [description, setDescription] = useState('');
   const [cost, setCost] = useState('');
@@ -119,36 +103,38 @@ function AddMaintenanceModal({ visible, onClose, onSave, tokens }: { visible: bo
         <Pressable style={modalStyles.backdrop} onPress={onClose} />
         <View style={[modalStyles.sheet, { backgroundColor: tokens.bgAlt, borderColor: tokens.glassBorder }]}>
           <View style={modalStyles.handle} />
-          <Text style={[modalStyles.title, { color: tokens.text }]}>Aggiungi intervento</Text>
+          <Text style={[modalStyles.title, { color: tokens.text }]}>{t('garage.addMaint.title')}</Text>
 
-          <Text style={[modalStyles.label, { color: tokens.textMuted }]}>Tipo</Text>
+          <Text style={[modalStyles.label, { color: tokens.textMuted }]}>{t('garage.addMaint.type')}</Text>
           <View style={modalStyles.typeRow}>
-            {MAINTENANCE_TYPE_OPTIONS.map((opt) => (
+            {MAINTENANCE_TYPE_KEYS.map((key) => (
               <Pressable
-                key={opt.key}
-                onPress={() => setType(opt.key)}
+                key={key}
+                onPress={() => setType(key)}
                 style={[modalStyles.typeChip, {
-                  borderColor: type === opt.key ? tokens.primary + '80' : tokens.glassBorder,
-                  backgroundColor: type === opt.key ? tokens.primaryGlow : 'rgba(255,255,255,0.04)',
+                  borderColor: type === key ? tokens.primary + '80' : tokens.glassBorder,
+                  backgroundColor: type === key ? tokens.primaryGlow : 'rgba(255,255,255,0.04)',
                 }]}
               >
-                <Text style={[modalStyles.typeChipText, { color: type === opt.key ? tokens.primary : tokens.textMuted }]}>{opt.label}</Text>
+                <Text style={[modalStyles.typeChipText, { color: type === key ? tokens.primary : tokens.textMuted }]}>
+                  {key === 'inspection' ? t('garage.maintenance.inspectionOption') : t(`garage.maintenance.${key}`)}
+                </Text>
               </Pressable>
             ))}
           </View>
 
-          <Text style={[modalStyles.label, { color: tokens.textMuted }]}>Descrizione *</Text>
+          <Text style={[modalStyles.label, { color: tokens.textMuted }]}>{t('garage.addMaint.description')}</Text>
           <TextInput
             style={[modalStyles.input, { color: tokens.text, borderColor: tokens.glassBorder, backgroundColor: 'rgba(255,255,255,0.05)' }]}
             value={description}
             onChangeText={setDescription}
-            placeholder="Es. Cambio olio e filtri, tagliando 120.000 km…"
+            placeholder={t('garage.addMaint.descriptionPlaceholder')}
             placeholderTextColor={tokens.textMuted}
           />
 
           <View style={modalStyles.row}>
             <View style={{ flex: 1 }}>
-              <Text style={[modalStyles.label, { color: tokens.textMuted }]}>Costo (€)</Text>
+              <Text style={[modalStyles.label, { color: tokens.textMuted }]}>{t('garage.addMaint.cost')}</Text>
               <TextInput
                 style={[modalStyles.input, { color: tokens.text, borderColor: tokens.glassBorder, backgroundColor: 'rgba(255,255,255,0.05)' }]}
                 value={cost}
@@ -159,20 +145,20 @@ function AddMaintenanceModal({ visible, onClose, onSave, tokens }: { visible: bo
               />
             </View>
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={[modalStyles.label, { color: tokens.textMuted }]}>Officina</Text>
+              <Text style={[modalStyles.label, { color: tokens.textMuted }]}>{t('garage.addMaint.workshop')}</Text>
               <TextInput
                 style={[modalStyles.input, { color: tokens.text, borderColor: tokens.glassBorder, backgroundColor: 'rgba(255,255,255,0.05)' }]}
                 value={workshop}
                 onChangeText={setWorkshop}
-                placeholder="Nome officina"
+                placeholder={t('garage.addMaint.workshopPlaceholder')}
                 placeholderTextColor={tokens.textMuted}
               />
             </View>
           </View>
 
-          <PrimaryButton label={saving ? 'Salvataggio…' : 'Salva intervento'} onPress={onSubmit} color={tokens.primary} disabled={saving || !description.trim()} />
+          <PrimaryButton label={saving ? t('garage.addMaint.saving') : t('garage.addMaint.save')} onPress={onSubmit} color={tokens.primary} disabled={saving || !description.trim()} />
           <Pressable onPress={onClose} style={modalStyles.cancelBtn}>
-            <Text style={[modalStyles.cancelText, { color: tokens.textMuted }]}>Annulla</Text>
+            <Text style={[modalStyles.cancelText, { color: tokens.textMuted }]}>{t('garage.addMaint.cancel')}</Text>
           </Pressable>
         </View>
       </View>
@@ -183,12 +169,13 @@ function AddMaintenanceModal({ visible, onClose, onSave, tokens }: { visible: bo
 // ─── Add Reminder Modal ───────────────────────────────────────────────────────
 
 function AddReminderModal({ visible, onClose, onSave, tokens }: { visible: boolean; onClose: () => void; onSave: (data: { type: ReminderType; title: string; dueDate: string }) => void; tokens: ThemeTokens }) {
+  const { t } = useI18n();
   const [type, setType] = useState<ReminderType>('revision');
   const [customTitle, setCustomTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const selectedTypeLabel = REMINDER_TYPE_OPTIONS.find((o) => o.key === type)?.label ?? '';
+  const selectedTypeLabel = t(`garage.reminder.${type}`);
   const title = type === 'custom' ? customTitle : selectedTypeLabel;
 
   const reset = () => { setType('revision'); setCustomTitle(''); setDueDate(''); };
@@ -207,39 +194,39 @@ function AddReminderModal({ visible, onClose, onSave, tokens }: { visible: boole
         <Pressable style={modalStyles.backdrop} onPress={onClose} />
         <View style={[modalStyles.sheet, { backgroundColor: tokens.bgAlt, borderColor: tokens.glassBorder }]}>
           <View style={modalStyles.handle} />
-          <Text style={[modalStyles.title, { color: tokens.text }]}>Aggiungi promemoria</Text>
+          <Text style={[modalStyles.title, { color: tokens.text }]}>{t('garage.addReminder.title')}</Text>
 
-          <Text style={[modalStyles.label, { color: tokens.textMuted }]}>Tipo</Text>
+          <Text style={[modalStyles.label, { color: tokens.textMuted }]}>{t('garage.addReminder.type')}</Text>
           <View style={modalStyles.typeRow}>
-            {REMINDER_TYPE_OPTIONS.map((opt) => (
+            {REMINDER_TYPE_KEYS.map((key) => (
               <Pressable
-                key={opt.key}
-                onPress={() => setType(opt.key)}
+                key={key}
+                onPress={() => setType(key)}
                 style={[modalStyles.typeChip, {
-                  borderColor: type === opt.key ? tokens.accent + '80' : tokens.glassBorder,
-                  backgroundColor: type === opt.key ? tokens.accent + '18' : 'rgba(255,255,255,0.04)',
+                  borderColor: type === key ? tokens.accent + '80' : tokens.glassBorder,
+                  backgroundColor: type === key ? tokens.accent + '18' : 'rgba(255,255,255,0.04)',
                 }]}
               >
-                <Ionicons name={opt.icon} size={12} color={type === opt.key ? tokens.accent : tokens.textMuted} />
-                <Text style={[modalStyles.typeChipText, { color: type === opt.key ? tokens.accent : tokens.textMuted }]}>{opt.label}</Text>
+                <Ionicons name={REMINDER_TYPE_ICONS[key]} size={12} color={type === key ? tokens.accent : tokens.textMuted} />
+                <Text style={[modalStyles.typeChipText, { color: type === key ? tokens.accent : tokens.textMuted }]}>{t(`garage.reminder.${key}`)}</Text>
               </Pressable>
             ))}
           </View>
 
           {type === 'custom' && (
             <>
-              <Text style={[modalStyles.label, { color: tokens.textMuted }]}>Titolo</Text>
+              <Text style={[modalStyles.label, { color: tokens.textMuted }]}>{t('garage.addReminder.customTitle')}</Text>
               <TextInput
                 style={[modalStyles.input, { color: tokens.text, borderColor: tokens.glassBorder, backgroundColor: 'rgba(255,255,255,0.05)' }]}
                 value={customTitle}
                 onChangeText={setCustomTitle}
-                placeholder="Es. Sostituzione gomme invernali"
+                placeholder={t('garage.addReminder.customPlaceholder')}
                 placeholderTextColor={tokens.textMuted}
               />
             </>
           )}
 
-          <Text style={[modalStyles.label, { color: tokens.textMuted }]}>Data scadenza (AAAA-MM-GG)</Text>
+          <Text style={[modalStyles.label, { color: tokens.textMuted }]}>{t('garage.addReminder.dueDate')}</Text>
           <TextInput
             style={[modalStyles.input, { color: tokens.text, borderColor: tokens.glassBorder, backgroundColor: 'rgba(255,255,255,0.05)' }]}
             value={dueDate}
@@ -249,9 +236,9 @@ function AddReminderModal({ visible, onClose, onSave, tokens }: { visible: boole
             keyboardType="numbers-and-punctuation"
           />
 
-          <PrimaryButton label={saving ? 'Salvataggio…' : 'Salva promemoria'} onPress={onSubmit} color={tokens.accent} disabled={saving || !dueDate.trim() || !title} />
+          <PrimaryButton label={saving ? t('garage.addReminder.saving') : t('garage.addReminder.save')} onPress={onSubmit} color={tokens.accent} disabled={saving || !dueDate.trim() || !title} />
           <Pressable onPress={onClose} style={modalStyles.cancelBtn}>
-            <Text style={[modalStyles.cancelText, { color: tokens.textMuted }]}>Annulla</Text>
+            <Text style={[modalStyles.cancelText, { color: tokens.textMuted }]}>{t('garage.addReminder.cancel')}</Text>
           </Pressable>
         </View>
       </View>
@@ -262,6 +249,7 @@ function AddReminderModal({ visible, onClose, onSave, tokens }: { visible: boole
 // ─── Vehicle Detail Section ───────────────────────────────────────────────────
 
 function VehicleDetailSection({ vehicleId, userId, tokens }: { vehicleId: string; userId: string; tokens: ThemeTokens }) {
+  const { t, formatDate: fmt } = useI18n();
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -322,20 +310,20 @@ function VehicleDetailSection({ vehicleId, userId, tokens }: { vehicleId: string
     <View style={detailStyles.container}>
       {/* ── Promemoria ── */}
       <View style={detailStyles.sectionHeader}>
-        <Text style={[detailStyles.sectionTitle, { color: tokens.text }]}>Promemoria</Text>
+        <Text style={[detailStyles.sectionTitle, { color: tokens.text }]}>{t('garage.reminders')}</Text>
         <Pressable
           onPress={() => setAddReminderModal(true)}
           style={[detailStyles.addBtn, { borderColor: tokens.accent + '60', backgroundColor: tokens.accent + '15' }]}
         >
           <Ionicons name="add" size={14} color={tokens.accent} />
-          <Text style={[detailStyles.addBtnText, { color: tokens.accent }]}>Aggiungi</Text>
+          <Text style={[detailStyles.addBtnText, { color: tokens.accent }]}>{t('garage.add')}</Text>
         </Pressable>
       </View>
 
       {reminders.length === 0 ? (
         <View style={[detailStyles.emptyBox, { borderColor: tokens.glassBorder }]}>
           <Ionicons name="notifications-outline" size={20} color={tokens.textMuted} />
-          <Text style={[detailStyles.emptyText, { color: tokens.textMuted }]}>Nessun promemoria</Text>
+          <Text style={[detailStyles.emptyText, { color: tokens.textMuted }]}>{t('garage.noReminders')}</Text>
         </View>
       ) : (
         <View style={detailStyles.reminderList}>
@@ -359,8 +347,8 @@ function VehicleDetailSection({ vehicleId, userId, tokens }: { vehicleId: string
                 <View style={detailStyles.reminderBody}>
                   <Text style={[detailStyles.reminderTitle, { color: tokens.text }]}>{r.title}</Text>
                   <Text style={[detailStyles.reminderDate, { color }]}>
-                    {overdue ? `Scaduto ${Math.abs(days)} giorni fa` : days === 0 ? 'Scade oggi' : `Scade tra ${days} giorni`}
-                    {' · '}{new Date(r.due_date).toLocaleDateString()}
+                    {overdue ? t('garage.overdue', { n: Math.abs(days) }) : days === 0 ? t('garage.dueToday') : t('garage.dueIn', { n: days })}
+                    {' · '}{fmt(r.due_date)}
                   </Text>
                 </View>
                 <Pressable
@@ -377,20 +365,20 @@ function VehicleDetailSection({ vehicleId, userId, tokens }: { vehicleId: string
 
       {/* ── Timeline ── */}
       <View style={[detailStyles.sectionHeader, { marginTop: 20 }]}>
-        <Text style={[detailStyles.sectionTitle, { color: tokens.text }]}>Timeline</Text>
+        <Text style={[detailStyles.sectionTitle, { color: tokens.text }]}>{t('garage.timeline')}</Text>
         <Pressable
           onPress={() => setAddMaintModal(true)}
           style={[detailStyles.addBtn, { borderColor: tokens.primary + '60', backgroundColor: tokens.primaryGlow }]}
         >
           <Ionicons name="add" size={14} color={tokens.primary} />
-          <Text style={[detailStyles.addBtnText, { color: tokens.primary }]}>Intervento</Text>
+          <Text style={[detailStyles.addBtnText, { color: tokens.primary }]}>{t('garage.addMaintenance')}</Text>
         </Pressable>
       </View>
 
       {timeline.length === 0 ? (
         <View style={[detailStyles.emptyBox, { borderColor: tokens.glassBorder }]}>
           <Ionicons name="time-outline" size={20} color={tokens.textMuted} />
-          <Text style={[detailStyles.emptyText, { color: tokens.textMuted }]}>Nessun evento</Text>
+          <Text style={[detailStyles.emptyText, { color: tokens.textMuted }]}>{t('garage.noEvents')}</Text>
         </View>
       ) : (
         <View style={detailStyles.timelineList}>
@@ -409,11 +397,11 @@ function VehicleDetailSection({ vehicleId, userId, tokens }: { vehicleId: string
                       <View style={[detailStyles.timelineIcon, { backgroundColor: urgencyColor + '20' }]}>
                         <Ionicons name="construct-outline" size={12} color={urgencyColor} />
                       </View>
-                      <Text style={[detailStyles.timelineType, { color: tokens.textMuted }]}>Diagnosi</Text>
-                      <Text style={[detailStyles.timelineDate, { color: tokens.textMuted }]}>{formatDate(event.date)}</Text>
+                      <Text style={[detailStyles.timelineType, { color: tokens.textMuted }]}>{t('garage.diagnosisLabel')}</Text>
+                      <Text style={[detailStyles.timelineDate, { color: tokens.textMuted }]}>{fmt(event.date)}</Text>
                     </View>
                     <Text style={[detailStyles.timelineTitle, { color: tokens.text }]} numberOfLines={2}>
-                      {event.record.summary ?? 'Diagnosi'}
+                      {event.record.summary ?? t('garage.diagnosisLabel')}
                     </Text>
                     {event.record.cost_min != null && (
                       <Text style={[detailStyles.timelineMeta, { color: tokens.textMuted }]}>
@@ -427,7 +415,7 @@ function VehicleDetailSection({ vehicleId, userId, tokens }: { vehicleId: string
 
             // maintenance
             const mIcon = MAINTENANCE_ICONS[event.entry.type];
-            const mLabel = MAINTENANCE_LABELS[event.entry.type];
+            const mLabel = t(`garage.maintenance.${event.entry.type}`);
             return (
               <View key={event.entry.id} style={detailStyles.timelineRow}>
                 <View style={detailStyles.timelineLeft}>
@@ -440,7 +428,7 @@ function VehicleDetailSection({ vehicleId, userId, tokens }: { vehicleId: string
                       <Ionicons name={mIcon} size={12} color="#34D399" />
                     </View>
                     <Text style={[detailStyles.timelineType, { color: tokens.textMuted }]}>{mLabel}</Text>
-                    <Text style={[detailStyles.timelineDate, { color: tokens.textMuted }]}>{formatDate(event.date)}</Text>
+                    <Text style={[detailStyles.timelineDate, { color: tokens.textMuted }]}>{fmt(event.date)}</Text>
                   </View>
                   <Text style={[detailStyles.timelineTitle, { color: tokens.text }]} numberOfLines={2}>
                     {event.entry.description}
