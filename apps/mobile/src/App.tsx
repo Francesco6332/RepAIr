@@ -17,6 +17,7 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [onboardingLoaded, setOnboardingLoaded] = useState(false);
   const [gdprAccepted, setGdprAccepted] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -52,11 +53,18 @@ export default function App() {
 
   // Check onboarding status whenever the user changes
   useEffect(() => {
-    if (!session) return;
+    if (!session) {
+      setNeedsOnboarding(false);
+      setOnboardingLoaded(true);
+      return;
+    }
+
+    setOnboardingLoaded(false);
     const key = `${ONBOARDED_KEY}_${session.user.id}`;
     AsyncStorage.getItem(key)
       .then((val) => setNeedsOnboarding(val !== 'true'))
-      .catch(() => setNeedsOnboarding(false));
+      .catch(() => setNeedsOnboarding(false))
+      .finally(() => setOnboardingLoaded(true));
   }, [session?.user.id]);
 
   // Register for push notifications after login
@@ -71,7 +79,7 @@ export default function App() {
     setNeedsOnboarding(false);
   };
 
-  if (loading || gdprAccepted === null) {
+  if (loading || gdprAccepted === null || !onboardingLoaded) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#080B12' }}>
         <ActivityIndicator size="large" color="#34D399" />

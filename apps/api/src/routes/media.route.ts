@@ -14,13 +14,15 @@ const imageSchema = z.object({
   vehicle: vehicleSchema,
   imageBase64: z.string().min(10),
   mimeType: z.string().default('image/jpeg'),
-  region: z.string().optional()
+  region: z.string().optional(),
+  language: z.enum(['it', 'en']).optional()
 });
 
 const audioSchema = z.object({
   vehicle: vehicleSchema,
   audioTranscript: z.string().min(3),
-  region: z.string().optional()
+  region: z.string().optional(),
+  language: z.enum(['it', 'en']).optional()
 });
 
 export const mediaRouter = Router();
@@ -35,7 +37,8 @@ mediaRouter.post('/analyze-photo', async (req, res) => {
     imageBase64: parse.data.imageBase64,
     mimeType: parse.data.mimeType,
     vehicle: parse.data.vehicle,
-    region: parse.data.region
+    region: parse.data.region,
+    language: parse.data.language
   });
 
   return res.json({
@@ -54,7 +57,8 @@ mediaRouter.post('/analyze-audio', async (req, res) => {
   const data = await generatePrediagnosis({
     prompt: `Noise transcript: ${parse.data.audioTranscript}`,
     vehicle: parse.data.vehicle,
-    region: parse.data.region
+    region: parse.data.region,
+    language: parse.data.language
   });
 
   return res.json({

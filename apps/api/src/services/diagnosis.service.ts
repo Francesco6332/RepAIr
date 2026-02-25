@@ -6,12 +6,29 @@ import { env } from '../config/env';
 const anthropicClient = env.anthropicApiKey ? new Anthropic({ apiKey: env.anthropicApiKey }) : null;
 const openaiClient = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : null;
 
-function sanitizeResult(input: Partial<PrediagnosisResult>): PrediagnosisResult {
+type AppLanguage = 'it' | 'en';
+
+function normalizeLanguage(language?: string): AppLanguage {
+  return language === 'it' ? 'it' : 'en';
+}
+
+function sanitizeResult(input: Partial<PrediagnosisResult>, language: AppLanguage): PrediagnosisResult {
   const urgency = input.urgency;
   const canDrive = input.canDrive;
+  const defaults = language === 'it'
+    ? {
+        probableIssue: 'Impossibile determinare il problema',
+        safetyAdvice: 'Consulta un meccanico certificato.',
+        disclaimer: 'Pre-diagnosi AI. Deve essere verificata da un meccanico certificato.',
+      }
+    : {
+        probableIssue: 'Unable to determine the issue',
+        safetyAdvice: 'Consult a certified mechanic.',
+        disclaimer: 'AI pre-diagnosis. It must be verified by a certified mechanic.',
+      };
 
   return {
-    probableIssue: input.probableIssue?.trim() || 'Unable to determine issue',
+    probableIssue: input.probableIssue?.trim() || defaults.probableIssue,
     confidence:
       typeof input.confidence === 'number' && Number.isFinite(input.confidence)
         ? Math.min(0.99, Math.max(0.05, input.confidence))
@@ -25,13 +42,12 @@ function sanitizeResult(input: Partial<PrediagnosisResult>): PrediagnosisResult 
       typeof input.estimatedCostMax === 'number' && Number.isFinite(input.estimatedCostMax)
         ? Math.max(0, Math.round(input.estimatedCostMax))
         : 0,
-    safetyAdvice: input.safetyAdvice?.trim() || 'Consulta un meccanico certificato.',
+    safetyAdvice: input.safetyAdvice?.trim() || defaults.safetyAdvice,
     nextChecks: Array.isArray(input.nextChecks)
       ? input.nextChecks.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 5)
       : [],
     disclaimer:
-      input.disclaimer?.trim() ||
-      'Pre-diagnosi AI. Deve essere verificata da un meccanico certificato.',
+      input.disclaimer?.trim() || defaults.disclaimer,
     // Extended fields
     canDrive: canDrive === 'yes' || canDrive === 'with_caution' || canDrive === 'no' ? canDrive : undefined,
     topCauses: Array.isArray(input.topCauses)
@@ -63,34 +79,40 @@ function buildPrompt(input: { prompt: string; vehicle: VehicleContext; region?: 
   return `Vehicle: ${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.year}, mileage ${input.vehicle.mileage ?? 'unknown'}\nFuel: ${input.vehicle.fuelType ?? 'unknown'}\nRegion: ${input.region ?? 'unknown'}\nSymptom: ${input.prompt}`;
 }
 
-const STRUCTURED_REPORT_SYSTEM =
-  'You are RepAIro, a professional automotive pre-diagnosis assistant for Italian users. ' +
-  'Return valid JSON only with these exact keys: ' +
-  'probableIssue (string, main diagnosis in Italian), ' +
-  'confidence (float 0..1, overall confidence), ' +
-  'urgency ("low"|"medium"|"high"), ' +
-  'canDrive ("yes"|"with_caution"|"no", whether the user can safely drive now), ' +
-  'topCauses (array of up to 3 objects {cause: string, confidence: float}, most probable causes in Italian), ' +
-  'estimatedCostMin (integer EUR), ' +
-  'estimatedCostMax (integer EUR), ' +
-  'estimatedTimeMin (integer, repair hours), ' +
-  'estimatedTimeMax (integer, repair hours), ' +
-  'safetyAdvice (string, immediate safety advice in Italian), ' +
-  'userChecks (string array of 3-5 things user can verify themselves in 5 minutes, in Italian), ' +
-  'nextChecks (string array of up to 5 checks a mechanic must perform, in Italian), ' +
-  'ignoreRisks (string, what happens if this problem is ignored, in Italian), ' +
-  'mechanicQuestions (string array of 3-5 questions to ask the mechanic, in Italian), ' +
-  'disclaimer (string, legal disclaimer in Italian). ' +
-  'Never claim certainty. All text must be in Italian.';
+function buildStructuredReportSystem(language: AppLanguage): string {
+  const langName = language === 'it' ? 'Italian' : 'English';
+  return (
+    `You are RepAIro, a professional automotive pre-diagnosis assistant for ${langName}-speaking users. ` +
+    'Return valid JSON only with these exact keys: ' +
+    `probableIssue (string, main diagnosis in ${langName}), ` +
+    'confidence (float 0..1, overall confidence), ' +
+    'urgency ("low"|"medium"|"high"), ' +
+    'canDrive ("yes"|"with_caution"|"no", whether the user can safely drive now), ' +
+    `topCauses (array of up to 3 objects {cause: string, confidence: float}, most probable causes in ${langName}), ` +
+    'estimatedCostMin (integer EUR), ' +
+    'estimatedCostMax (integer EUR), ' +
+    'estimatedTimeMin (integer, repair hours), ' +
+    'estimatedTimeMax (integer, repair hours), ' +
+    `safetyAdvice (string, immediate safety advice in ${langName}), ` +
+    `userChecks (string array of 3-5 things user can verify themselves in 5 minutes, in ${langName}), ` +
+    `nextChecks (string array of up to 5 checks a mechanic must perform, in ${langName}), ` +
+    `ignoreRisks (string, what happens if this problem is ignored, in ${langName}), ` +
+    `mechanicQuestions (string array of 3-5 questions to ask the mechanic, in ${langName}), ` +
+    `disclaimer (string, legal disclaimer in ${langName}). ` +
+    `Never claim certainty. All text must be in ${langName}.`
+  );
+}
 
 async function openAiPrediagnosis(input: {
   prompt: string;
   vehicle: VehicleContext;
   region?: string;
+  language?: string;
 }): Promise<PrediagnosisResult | null> {
   if (!openaiClient) return null;
 
-  const system = STRUCTURED_REPORT_SYSTEM;
+  const language = normalizeLanguage(input.language);
+  const system = buildStructuredReportSystem(language);
 
   const completion = await openaiClient.chat.completions.create({
     model: env.openaiModel,
@@ -107,7 +129,7 @@ async function openAiPrediagnosis(input: {
 
   try {
     const parsed = JSON.parse(raw) as Partial<PrediagnosisResult>;
-    return sanitizeResult(parsed);
+    return sanitizeResult(parsed, language);
   } catch {
     return null;
   }
@@ -117,10 +139,12 @@ async function anthropicPrediagnosis(input: {
   prompt: string;
   vehicle: VehicleContext;
   region?: string;
+  language?: string;
 }): Promise<PrediagnosisResult | null> {
   if (!anthropicClient) return null;
 
-  const system = STRUCTURED_REPORT_SYSTEM + ' Reply with a single valid JSON object — no markdown, no code blocks, no explanation.';
+  const language = normalizeLanguage(input.language);
+  const system = buildStructuredReportSystem(language) + ' Reply with a single valid JSON object — no markdown, no code blocks, no explanation.';
 
   const res = await anthropicClient.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -137,7 +161,7 @@ async function anthropicPrediagnosis(input: {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
     const parsed = JSON.parse(jsonMatch[0]) as Partial<PrediagnosisResult>;
-    return sanitizeResult(parsed);
+    return sanitizeResult(parsed, language);
   } catch {
     return null;
   }
@@ -148,7 +172,10 @@ export async function analyzeImageWithVision(input: {
   mimeType: string;
   vehicle: VehicleContext;
   region?: string;
+  language?: string;
 }): Promise<PrediagnosisResult> {
+  const language = normalizeLanguage(input.language);
+  const system = buildStructuredReportSystem(language);
   const vehicleDesc = `${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.year} (${input.vehicle.fuelType ?? 'unknown fuel'}, ${input.vehicle.mileage ?? 'unknown'} km)`;
   const userText = `Vehicle: ${vehicleDesc}. Region: ${input.region ?? 'unknown'}. Examine this photo carefully and diagnose any visible car issues.`;
 
@@ -161,7 +188,7 @@ export async function analyzeImageWithVision(input: {
         messages: [
           {
             role: 'system',
-            content: STRUCTURED_REPORT_SYSTEM
+            content: system
           },
           {
             role: 'user',
@@ -181,7 +208,7 @@ export async function analyzeImageWithVision(input: {
       const raw = completion.choices[0]?.message?.content;
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<PrediagnosisResult>;
-        return sanitizeResult(parsed);
+        return sanitizeResult(parsed, language);
       }
     } catch {
       // fall through to Anthropic
@@ -193,7 +220,7 @@ export async function analyzeImageWithVision(input: {
       const res = await anthropicClient.messages.create({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 900,
-        system: STRUCTURED_REPORT_SYSTEM + ' Reply with a single valid JSON object — no markdown, no code blocks, no explanation.',
+        system: system + ' Reply with a single valid JSON object — no markdown, no code blocks, no explanation.',
         messages: [
           {
             role: 'user',
@@ -216,7 +243,7 @@ export async function analyzeImageWithVision(input: {
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]) as Partial<PrediagnosisResult>;
-          return sanitizeResult(parsed);
+          return sanitizeResult(parsed, language);
         }
       }
     } catch {
@@ -231,6 +258,7 @@ export async function generatePrediagnosis(input: {
   prompt: string;
   vehicle: VehicleContext;
   region?: string;
+  language?: string;
 }): Promise<PrediagnosisResult> {
   try {
     const openAi = await openAiPrediagnosis(input);

@@ -19,7 +19,8 @@ const schema = z.object({
     .regex(/^[PCBU][0-9]{4}$/i, 'Invalid OBD-II code format (e.g. P0420)')
     .transform((s) => s.trim().toUpperCase()),
   vehicle: vehicleSchema,
-  region: z.string().optional()
+  region: z.string().optional(),
+  language: z.enum(['it', 'en']).optional()
 });
 
 type DtcRecord = {
@@ -52,7 +53,7 @@ dtcRouter.post('/lookup', async (req, res) => {
     return res.status(400).json({ error: parse.error.flatten() });
   }
 
-  const { code, vehicle, region } = parse.data;
+  const { code, vehicle, region, language } = parse.data;
 
   const record = await fetchDtcRecord(code);
 
@@ -62,7 +63,7 @@ dtcRouter.post('/lookup', async (req, res) => {
 
   const prompt = `OBD-II diagnostic trouble code ${code} detected. ${dbContext} Provide a prediagnosis for this specific vehicle.`;
 
-  const result = await generatePrediagnosis({ prompt, vehicle, region });
+  const result = await generatePrediagnosis({ prompt, vehicle, region, language });
 
   return res.json(result);
 });

@@ -130,7 +130,8 @@ export function DiagnoseScreen({ session }: Props) {
   const insets = useSafeAreaInsets();
   const preset = useThemeStore((s) => s.preset);
   const tokens = useMemo(() => themes[preset], [preset]);
-  const { t, formatDate } = useI18n();
+  const { t, formatDate, language } = useI18n();
+  const appLanguage: 'it' | 'en' = language === 'it' ? 'it' : 'en';
   const { vehicles, selectedVehicleId, setLastDiagnosis } = useVehicleStore();
 
   // Wizard state
@@ -180,7 +181,10 @@ export function DiagnoseScreen({ session }: Props) {
       setLastDiagnosis(data);
       setConversationHistory([
         { role: 'user', content: userContent },
-        { role: 'assistant', content: `${data.probableIssue}. Confidenza: ${Math.round(data.confidence * 100)}%. ${data.safetyAdvice}` },
+        {
+          role: 'assistant',
+          content: `${data.probableIssue}. ${appLanguage === 'it' ? 'Confidenza' : 'Confidence'}: ${Math.round(data.confidence * 100)}%. ${data.safetyAdvice}`,
+        },
       ]);
       scheduleLocalDiagnosisAlert(data.urgency, data.probableIssue).catch(() => {});
       if (selectedVehicle) {
@@ -198,7 +202,7 @@ export function DiagnoseScreen({ session }: Props) {
     const prompt = finalPrompt;
     if (!prompt.trim()) { setError(t('diagnose.emptyPromptError')); return; }
     await withGuard(
-      async () => createPrediagnosis({ mode: 'text', prompt, region: 'IT', vehicle: vehicleContext! }),
+      async () => createPrediagnosis({ mode: 'text', prompt, region: 'IT', language: appLanguage, vehicle: vehicleContext! }),
       'text',
       prompt
     );
@@ -212,8 +216,8 @@ export function DiagnoseScreen({ session }: Props) {
     const asset = picked.assets[0];
     if (!asset.base64) { setError(t('diagnose.photoReadError')); return; }
     await withGuard(
-      async () => analyzePhoto({ imageBase64: asset.base64!, mimeType: asset.mimeType ?? 'image/jpeg', region: 'IT', vehicle: vehicleContext! }),
-      'photo', 'Analisi foto problema visibile'
+      async () => analyzePhoto({ imageBase64: asset.base64!, mimeType: asset.mimeType ?? 'image/jpeg', region: 'IT', language: appLanguage, vehicle: vehicleContext! }),
+      'photo', appLanguage === 'it' ? 'Analisi foto problema visibile' : 'Photo analysis of visible issue'
     );
   };
 
@@ -233,10 +237,14 @@ export function DiagnoseScreen({ session }: Props) {
     const seconds = audioStartedAt ? Math.round((Date.now() - audioStartedAt) / 1000) : 10;
     setRecording(null);
     setAudioStartedAt(null);
-    const context = finalPrompt ? `Contesto: ${finalPrompt}. ` : '';
+    const contextPrefix = appLanguage === 'it' ? 'Contesto' : 'Context';
+    const transcriptLine = appLanguage === 'it'
+      ? `Il conducente ha registrato un rumore meccanico anomalo per circa ${seconds} secondi.`
+      : `The driver recorded an abnormal mechanical noise for about ${seconds} seconds.`;
+    const context = finalPrompt ? `${contextPrefix}: ${finalPrompt}. ` : '';
     await withGuard(
-      async () => analyzeAudio({ audioTranscript: `${context}Il conducente ha registrato un rumore meccanico anomalo per circa ${seconds} secondi.`, region: 'IT', vehicle: vehicleContext! }),
-      'audio', `Registrazione audio (${seconds}s)${finalPrompt ? ` — ${finalPrompt}` : ''}`
+      async () => analyzeAudio({ audioTranscript: `${context}${transcriptLine}`, region: 'IT', language: appLanguage, vehicle: vehicleContext! }),
+      'audio', `${appLanguage === 'it' ? 'Registrazione audio' : 'Audio recording'} (${seconds}s)${finalPrompt ? ` — ${finalPrompt}` : ''}`
     );
   };
 
@@ -244,8 +252,8 @@ export function DiagnoseScreen({ session }: Props) {
     Keyboard.dismiss();
     if (!dtcCode.trim()) { setError(t('diagnose.dtcError')); return; }
     await withGuard(
-      async () => lookupDtc({ code: dtcCode.trim(), region: 'IT', vehicle: vehicleContext! }),
-      'text', `Codice OBD-II: ${dtcCode.trim()}`
+      async () => lookupDtc({ code: dtcCode.trim(), region: 'IT', language: appLanguage, vehicle: vehicleContext! }),
+      'text', `${appLanguage === 'it' ? 'Codice OBD-II' : 'OBD-II code'}: ${dtcCode.trim()}`
     );
   };
 
@@ -259,7 +267,7 @@ export function DiagnoseScreen({ session }: Props) {
     setFollowUpText('');
     setChatLoading(true);
     try {
-      const response = await sendFollowUp({ messages: newHistory, vehicle: vehicleContext, region: 'IT' });
+      const response = await sendFollowUp({ messages: newHistory, vehicle: vehicleContext, region: 'IT', language: appLanguage });
       const aiMsg: ChatMessage = { role: 'assistant', content: response.message };
       setConversationHistory((prev) => [...prev, aiMsg]);
       setChatMessages((prev) => [...prev, aiMsg]);

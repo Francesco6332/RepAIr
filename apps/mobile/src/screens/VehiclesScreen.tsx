@@ -332,7 +332,7 @@ function VehicleDetailSection({ vehicleId, userId, tokens }: { vehicleId: string
             const urgent = days <= 14;
             const overdue = days < 0;
             const color = overdue ? '#F87171' : urgent ? '#FBBF24' : tokens.textMuted;
-            const typeInfo = REMINDER_TYPE_OPTIONS.find((o) => o.key === r.type);
+            const reminderIcon = REMINDER_TYPE_ICONS[r.type] ?? 'calendar-outline';
             return (
               <View
                 key={r.id}
@@ -342,7 +342,7 @@ function VehicleDetailSection({ vehicleId, userId, tokens }: { vehicleId: string
                 ]}
               >
                 <View style={[detailStyles.reminderIcon, { backgroundColor: color + '20' }]}>
-                  <Ionicons name={typeInfo?.icon ?? 'calendar-outline'} size={14} color={color} />
+                  <Ionicons name={reminderIcon} size={14} color={color} />
                 </View>
                 <View style={detailStyles.reminderBody}>
                   <Text style={[detailStyles.reminderTitle, { color: tokens.text }]}>{r.title}</Text>

@@ -14,7 +14,8 @@ const schema = z.object({
   mode: z.enum(['text', 'image', 'audio']),
   prompt: z.string().min(3),
   vehicle: vehicleSchema,
-  region: z.string().optional()
+  region: z.string().optional(),
+  language: z.enum(['it', 'en']).optional()
 });
 
 export const diagnoseRouter = Router();
@@ -28,7 +29,8 @@ diagnoseRouter.post('/', async (req, res) => {
   const data = await generatePrediagnosis({
     prompt: parse.data.prompt,
     vehicle: parse.data.vehicle,
-    region: parse.data.region
+    region: parse.data.region,
+    language: parse.data.language
   });
 
   return res.json(data);

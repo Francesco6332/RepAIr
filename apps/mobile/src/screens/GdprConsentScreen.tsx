@@ -58,7 +58,7 @@ export function GdprConsentScreen({ onAccept }: Props) {
           >
             <Ionicons name="shield-checkmark" size={28} color="#fff" />
           </Gradient>
-          <Text style={[styles.appName, { color: tokens.text }]}>RepAIr</Text>
+          <Text style={[styles.appName, { color: tokens.text }]}>RepAIro</Text>
         </View>
 
         {/* Title */}

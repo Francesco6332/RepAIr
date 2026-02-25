@@ -6,6 +6,7 @@ import { Session } from '@supabase/supabase-js';
 import { DiagnoseScreen } from '../screens/DiagnoseScreen';
 import { MechanicsScreen } from '../screens/MechanicsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
+import { AuthOtpScreen } from '../screens/AuthOtpScreen';
 import { VehiclesScreen } from '../screens/VehiclesScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
@@ -27,9 +28,15 @@ type OnboardingStackParamList = {
   Pricing: undefined;
 };
 
+type AuthStackParamList = {
+  AuthLogin: undefined;
+  AuthOtp: { email: string; displayName?: string };
+};
+
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator();
 const OnboardingStack = createNativeStackNavigator<OnboardingStackParamList>();
+const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 
 function AppTabs({ session }: { session: Session }) {
   return (
@@ -61,6 +68,15 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   );
 }
 
+function AuthFlow() {
+  return (
+    <AuthStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+      <AuthStack.Screen name="AuthLogin" component={AuthScreen} />
+      <AuthStack.Screen name="AuthOtp" component={AuthOtpScreen} />
+    </AuthStack.Navigator>
+  );
+}
+
 type RootNavigatorProps = {
   session: Session | null;
   needsOnboarding: boolean;
@@ -84,7 +100,7 @@ export function RootNavigator({
             {() => <GdprConsentScreen onAccept={onGdprAccept} />}
           </Stack.Screen>
         ) : !session ? (
-          <Stack.Screen name="Auth" component={AuthScreen} />
+          <Stack.Screen name="Auth" component={AuthFlow} />
         ) : needsOnboarding ? (
           <Stack.Screen name="Onboarding">
             {() => <OnboardingFlow onComplete={onOnboardingComplete} />}

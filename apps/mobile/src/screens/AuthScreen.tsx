@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassCard } from '../components/GlassCard';
 import { GlassInput } from '../components/GlassInput';
@@ -20,6 +21,7 @@ import { ensureProfile } from '../services/profile';
 import { useI18n } from '../i18n';
 
 export function AuthScreen() {
+  const navigation = useNavigation<any>();
   const Gradient = LinearGradient as unknown as React.ComponentType<any>;
   const insets = useSafeAreaInsets();
   const preset = useThemeStore((s) => s.preset);
@@ -44,12 +46,24 @@ export function AuthScreen() {
       if (isSignUp) {
         const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
         if (signUpError) { setError(signUpError.message); return; }
-        if (data.user) await ensureProfile(data.user.id, name || undefined);
+        if (data.session?.user) {
+          await ensureProfile(data.session.user.id, name || undefined);
+          return;
+        }
+
+        // In email-confirmation mode Supabase returns no session until user verifies email.
+        navigation.navigate('AuthOtp', {
+          email: email.trim().toLowerCase(),
+          displayName: name.trim() || undefined,
+        });
       } else {
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) { setError(signInError.message); return; }
         if (data.user) await ensureProfile(data.user.id);
       }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Authentication failed. Please try again.';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -79,7 +93,7 @@ export function AuthScreen() {
             >
               <Ionicons name="car-sport" size={44} color={tokens.primary} />
             </View>
-            <Text style={[styles.appName, { color: tokens.text }]}>RepAIr</Text>
+            <Text style={[styles.appName, { color: tokens.text }]}>RepAIro</Text>
             <Text style={[styles.tagline, { color: tokens.textMuted }]}>
               {t('auth.tagline')}
             </Text>

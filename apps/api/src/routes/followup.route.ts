@@ -22,25 +22,44 @@ const schema = z.object({
     .min(1)
     .max(20),
   vehicle: vehicleSchema,
-  region: z.string().optional()
+  region: z.string().optional(),
+  language: z.enum(['it', 'en']).optional()
 });
 
-function buildSystem(vehicle: VehicleContext, region?: string): string {
-  return `You are RepAIro, an automotive pre-diagnosis AI continuing a diagnostic conversation in Italian.
+type AppLanguage = 'it' | 'en';
+
+function normalizeLanguage(language?: string): AppLanguage {
+  return language === 'it' ? 'it' : 'en';
+}
+
+function buildSystem(vehicle: VehicleContext, region?: string, language: AppLanguage = 'en'): string {
+  const langName = language === 'it' ? 'Italian' : 'English';
+  return `You are RepAIro, an automotive pre-diagnosis AI continuing a diagnostic conversation in ${langName}.
 Vehicle: ${vehicle.make} ${vehicle.model} ${vehicle.year}, ${vehicle.fuelType ?? 'unknown'} fuel, ${vehicle.mileage ?? 'unknown'} km. Region: ${region ?? 'unknown'}.
 Based on the conversation, either ask ONE concise clarifying question to narrow the diagnosis, or provide a refined pre-diagnosis if you have enough information.
 Return valid JSON with exactly two top-level keys:
-- "message": string — your response in Italian (max 3 sentences, plain text, no markdown)
-- "diagnosis": object — updated pre-diagnosis with these keys: probableIssue (string, Italian), confidence (0–1 float), urgency ("low"|"medium"|"high"), canDrive ("yes"|"with_caution"|"no"), topCauses (array of up to 3 {cause: string, confidence: float}), estimatedCostMin (int EUR), estimatedCostMax (int EUR), estimatedTimeMin (int hours), estimatedTimeMax (int hours), safetyAdvice (string, Italian), userChecks (string[] of 3-5 user actions, Italian), nextChecks (string[] of mechanic checks, Italian), ignoreRisks (string, Italian), mechanicQuestions (string[] of 3-5 questions, Italian), disclaimer (string, Italian).
-All text must be in Italian. Never claim certainty.`;
+- "message": string — your response in ${langName} (max 3 sentences, plain text, no markdown)
+- "diagnosis": object — updated pre-diagnosis with these keys: probableIssue (string, ${langName}), confidence (0–1 float), urgency ("low"|"medium"|"high"), canDrive ("yes"|"with_caution"|"no"), topCauses (array of up to 3 {cause: string, confidence: float}), estimatedCostMin (int EUR), estimatedCostMax (int EUR), estimatedTimeMin (int hours), estimatedTimeMax (int hours), safetyAdvice (string, ${langName}), userChecks (string[] of 3-5 user actions, ${langName}), nextChecks (string[] of mechanic checks, ${langName}), ignoreRisks (string, ${langName}), mechanicQuestions (string[] of 3-5 questions, ${langName}), disclaimer (string, ${langName}).
+All text must be in ${langName}. Never claim certainty.`;
 }
 
-function sanitize(raw: Record<string, unknown>): PrediagnosisResult {
+function sanitize(raw: Record<string, unknown>, language: AppLanguage): PrediagnosisResult {
   const d = (raw?.diagnosis ?? raw) as Record<string, unknown>;
   const urgency = d?.urgency as string;
   const canDrive = d?.canDrive as string;
+  const defaults = language === 'it'
+    ? {
+        probableIssue: 'In analisi',
+        safetyAdvice: 'Consulta un meccanico certificato.',
+        disclaimer: 'Pre-diagnosi AI. Deve essere verificata da un meccanico certificato.',
+      }
+    : {
+        probableIssue: 'Under analysis',
+        safetyAdvice: 'Consult a certified mechanic.',
+        disclaimer: 'AI pre-diagnosis. It must be verified by a certified mechanic.',
+      };
   return {
-    probableIssue: String(d?.probableIssue ?? 'In analisi').trim(),
+    probableIssue: String(d?.probableIssue ?? defaults.probableIssue).trim(),
     confidence:
       typeof d?.confidence === 'number'
         ? Math.min(0.99, Math.max(0.05, d.confidence))
@@ -50,11 +69,11 @@ function sanitize(raw: Record<string, unknown>): PrediagnosisResult {
       typeof d?.estimatedCostMin === 'number' ? Math.max(0, Math.round(d.estimatedCostMin)) : 0,
     estimatedCostMax:
       typeof d?.estimatedCostMax === 'number' ? Math.max(0, Math.round(d.estimatedCostMax)) : 0,
-    safetyAdvice: String(d?.safetyAdvice ?? 'Consulta un meccanico certificato.').trim(),
+    safetyAdvice: String(d?.safetyAdvice ?? defaults.safetyAdvice).trim(),
     nextChecks: Array.isArray(d?.nextChecks)
       ? (d.nextChecks as unknown[]).filter((s): s is string => typeof s === 'string').slice(0, 5)
       : [],
-    disclaimer: String(d?.disclaimer ?? 'Pre-diagnosi AI. Deve essere verificata da un meccanico certificato.').trim(),
+    disclaimer: String(d?.disclaimer ?? defaults.disclaimer).trim(),
     canDrive: canDrive === 'yes' || canDrive === 'with_caution' || canDrive === 'no' ? canDrive : undefined,
     topCauses: Array.isArray(d?.topCauses)
       ? (d.topCauses as unknown[])
@@ -89,8 +108,9 @@ followUpRouter.post('/', async (req, res) => {
     return res.status(400).json({ error: parse.error.flatten() });
   }
 
-  const { messages, vehicle, region } = parse.data;
-  const system = buildSystem(vehicle, region);
+  const { messages, vehicle, region, language: rawLanguage } = parse.data;
+  const language = normalizeLanguage(rawLanguage);
+  const system = buildSystem(vehicle, region, language);
   const history = messages.map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content
@@ -105,14 +125,15 @@ followUpRouter.post('/', async (req, res) => {
         response_format: { type: 'json_object' },
         messages: [{ role: 'system', content: system }, ...history]
       });
-      const raw = completion.choices[0]?.message?.content;
-      if (raw) {
-        const parsed = JSON.parse(raw) as Record<string, unknown>;
-        return res.json({
-          message: String(parsed.message ?? 'Can you give me more details?'),
-          diagnosis: sanitize(parsed.diagnosis as Record<string, unknown> ?? {})
-        });
-      }
+        const raw = completion.choices[0]?.message?.content;
+        if (raw) {
+          const parsed = JSON.parse(raw) as Record<string, unknown>;
+          const defaultMessage = language === 'it' ? 'Puoi darmi qualche dettaglio in piu?' : 'Can you give me more details?';
+          return res.json({
+            message: String(parsed.message ?? defaultMessage),
+            diagnosis: sanitize(parsed.diagnosis as Record<string, unknown> ?? {}, language)
+          });
+        }
     } catch {
       // fall through
     }
@@ -131,9 +152,10 @@ followUpRouter.post('/', async (req, res) => {
         const match = text.match(/\{[\s\S]*\}/);
         if (match) {
           const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+          const defaultMessage = language === 'it' ? 'Puoi darmi qualche dettaglio in piu?' : 'Can you give me more details?';
           return res.json({
-            message: String(parsed.message ?? 'Can you give me more details?'),
-            diagnosis: sanitize(parsed.diagnosis as Record<string, unknown> ?? {})
+            message: String(parsed.message ?? defaultMessage),
+            diagnosis: sanitize(parsed.diagnosis as Record<string, unknown> ?? {}, language)
           });
         }
       }

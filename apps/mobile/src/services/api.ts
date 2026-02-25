@@ -18,6 +18,7 @@ export async function createPrediagnosis(payload: {
   prompt: string;
   vehicle: VehicleContext;
   region?: string;
+  language?: 'it' | 'en';
 }): Promise<PrediagnosisResult> {
   const response = await fetch(`${BASE_URL}/api/diagnose`, {
     method: 'POST',
@@ -34,6 +35,7 @@ export async function analyzePhoto(payload: {
   mimeType: string;
   vehicle: VehicleContext;
   region?: string;
+  language?: 'it' | 'en';
 }) {
   const response = await fetch(`${BASE_URL}/api/media/analyze-photo`, {
     method: 'POST',
@@ -49,6 +51,7 @@ export async function analyzeAudio(payload: {
   audioTranscript: string;
   vehicle: VehicleContext;
   region?: string;
+  language?: 'it' | 'en';
 }) {
   const response = await fetch(`${BASE_URL}/api/media/analyze-audio`, {
     method: 'POST',
@@ -64,6 +67,7 @@ export async function sendFollowUp(payload: {
   messages: ChatMessage[];
   vehicle: VehicleContext;
   region?: string;
+  language?: 'it' | 'en';
 }): Promise<FollowUpResponse> {
   const response = await fetch(`${BASE_URL}/api/diagnose/followup`, {
     method: 'POST',
@@ -79,6 +83,7 @@ export async function lookupDtc(payload: {
   code: string;
   vehicle: VehicleContext;
   region?: string;
+  language?: 'it' | 'en';
 }): Promise<PrediagnosisResult> {
   const response = await fetch(`${BASE_URL}/api/dtc/lookup`, {
     method: 'POST',
@@ -98,5 +103,4 @@ export async function deleteAccount(): Promise<void> {
 
   if (!response.ok) throw new Error('Account deletion failed.');
 }
-
 
