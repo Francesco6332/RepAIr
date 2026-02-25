@@ -202,7 +202,7 @@ export function DiagnoseScreen({ session }: Props) {
     const prompt = finalPrompt;
     if (!prompt.trim()) { setError(t('diagnose.emptyPromptError')); return; }
     await withGuard(
-      async () => createPrediagnosis({ mode: 'text', prompt, region: 'IT', language: appLanguage, vehicle: vehicleContext! }),
+      async () => createPrediagnosis({ mode: 'text', prompt, region: appLanguage, language: appLanguage, vehicle: vehicleContext! }),
       'text',
       prompt
     );
@@ -216,7 +216,7 @@ export function DiagnoseScreen({ session }: Props) {
     const asset = picked.assets[0];
     if (!asset.base64) { setError(t('diagnose.photoReadError')); return; }
     await withGuard(
-      async () => analyzePhoto({ imageBase64: asset.base64!, mimeType: asset.mimeType ?? 'image/jpeg', region: 'IT', language: appLanguage, vehicle: vehicleContext! }),
+      async () => analyzePhoto({ imageBase64: asset.base64!, mimeType: asset.mimeType ?? 'image/jpeg', region: appLanguage, language: appLanguage, vehicle: vehicleContext! }),
       'photo', appLanguage === 'it' ? 'Analisi foto problema visibile' : 'Photo analysis of visible issue'
     );
   };
@@ -243,7 +243,7 @@ export function DiagnoseScreen({ session }: Props) {
       : `The driver recorded an abnormal mechanical noise for about ${seconds} seconds.`;
     const context = finalPrompt ? `${contextPrefix}: ${finalPrompt}. ` : '';
     await withGuard(
-      async () => analyzeAudio({ audioTranscript: `${context}${transcriptLine}`, region: 'IT', language: appLanguage, vehicle: vehicleContext! }),
+      async () => analyzeAudio({ audioTranscript: `${context}${transcriptLine}`, region: appLanguage, language: appLanguage, vehicle: vehicleContext! }),
       'audio', `${appLanguage === 'it' ? 'Registrazione audio' : 'Audio recording'} (${seconds}s)${finalPrompt ? ` — ${finalPrompt}` : ''}`
     );
   };
@@ -252,7 +252,7 @@ export function DiagnoseScreen({ session }: Props) {
     Keyboard.dismiss();
     if (!dtcCode.trim()) { setError(t('diagnose.dtcError')); return; }
     await withGuard(
-      async () => lookupDtc({ code: dtcCode.trim(), region: 'IT', language: appLanguage, vehicle: vehicleContext! }),
+      async () => lookupDtc({ code: dtcCode.trim(), region: appLanguage, language: appLanguage, vehicle: vehicleContext! }),
       'text', `${appLanguage === 'it' ? 'Codice OBD-II' : 'OBD-II code'}: ${dtcCode.trim()}`
     );
   };
@@ -267,7 +267,7 @@ export function DiagnoseScreen({ session }: Props) {
     setFollowUpText('');
     setChatLoading(true);
     try {
-      const response = await sendFollowUp({ messages: newHistory, vehicle: vehicleContext, region: 'IT', language: appLanguage });
+      const response = await sendFollowUp({ messages: newHistory, vehicle: vehicleContext, region: appLanguage, language: appLanguage });
       const aiMsg: ChatMessage = { role: 'assistant', content: response.message };
       setConversationHistory((prev) => [...prev, aiMsg]);
       setChatMessages((prev) => [...prev, aiMsg]);
